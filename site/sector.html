@@ -1,0 +1,559 @@
+<!doctype html>
+<html lang="ja">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover">
+<title>セクターローテーション</title>
+<meta name="claude:viewport-fit-sides" content="cover">
+<meta name="apple-mobile-web-app-capable" content="yes">
+<meta name="mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-title" content="うねり底">
+<meta name="apple-mobile-web-app-status-bar-style" content="default">
+<meta name="theme-color" content="#b8232c">
+<link rel="manifest" href="manifest.webmanifest">
+<meta name="robots" content="noindex,nofollow">
+<link rel="apple-touch-icon" href="icon-180.png">
+<style>
+/* うねり底スクリーナーと同じ朱赤の帳簿。上から「いまの局面 → 図 → 注目セクター → 指標 → 相場の流れ → 33業種」と読み進める1列 */
+:root{
+  --paper:#f7f1f1; --sheet:#fffcfc; --ink:#2a1718; --ink-2:#614a4b; --ink-3:#8f7677;
+  --rule:#e8d5d5; --rule-2:#f1e4e4;
+  --ai:#b8232c; --ai-soft:#f8e1e1;
+  --rise:#d4691a; --fall:#16806b; --warn:#9c7400;
+  --good-bg:#e0f0eb; --warn-bg:#f5ecd2; --bad-bg:#f8e0e0;
+  /* 4局面の色: 回復期=朱赤 好況期=橙 後退期=黄土 不況期=青緑 */
+  --p1:#b8232c; --p2:#d4691a; --p3:#9c7400; --p4:#16806b;
+  --f:"Meiryo","メイリオ","Hiragino Sans","Hiragino Kaku Gothic ProN","Noto Sans JP",system-ui,sans-serif;
+  --r:10px;
+  color-scheme:light;
+}
+@media (prefers-color-scheme: dark){:root:not([data-theme="light"]){
+  --paper:#170f10; --sheet:#211718; --ink:#f3e8e8; --ink-2:#c3adae; --ink-3:#927b7c;
+  --rule:#3d2b2c; --rule-2:#2e2122; --ai:#f27a76; --ai-soft:#3d1d20;
+  --rise:#f2a25c; --fall:#4fc3a6; --warn:#e2bf52;
+  --good-bg:#16302a; --warn-bg:#352a14; --bad-bg:#401e20;
+  --p1:#f27a76; --p2:#f2a25c; --p3:#e2bf52; --p4:#4fc3a6; color-scheme:dark}}
+:root[data-theme="dark"]{
+  --paper:#170f10; --sheet:#211718; --ink:#f3e8e8; --ink-2:#c3adae; --ink-3:#927b7c;
+  --rule:#3d2b2c; --rule-2:#2e2122; --ai:#f27a76; --ai-soft:#3d1d20;
+  --rise:#f2a25c; --fall:#4fc3a6; --warn:#e2bf52;
+  --good-bg:#16302a; --warn-bg:#352a14; --bad-bg:#401e20;
+  --p1:#f27a76; --p2:#f2a25c; --p3:#e2bf52; --p4:#4fc3a6; color-scheme:dark}
+:root{padding-top:env(safe-area-inset-top,0px);padding-bottom:env(safe-area-inset-bottom,0px)}
+*{box-sizing:border-box}
+html,body{margin:0}
+body{background:var(--paper);color:var(--ink);font-family:var(--f);font-size:15px;line-height:1.55;-webkit-text-size-adjust:100%}
+body::before{content:"";position:fixed;inset:0 0 auto;height:env(safe-area-inset-top,0px);z-index:30;background:var(--sheet)}
+[hidden]{display:none!important}
+button,input{font:inherit;color:inherit}
+.num{font-variant-numeric:tabular-nums}
+.wrap{max-width:720px;margin:0 auto;padding-left:max(16px,env(safe-area-inset-left,0px));padding-right:max(16px,env(safe-area-inset-right,0px))}
+header.top{position:sticky;top:env(safe-area-inset-top,0px);z-index:20;background:var(--sheet);border-bottom:1px solid var(--rule)}
+header.top .wrap{display:flex;align-items:center;gap:12px;padding-block:10px}
+.brand{flex:1;min-width:0}
+.brand h1{margin:0;font-weight:800;font-size:20px;letter-spacing:.03em;line-height:1.25}
+.brand p{margin:0;font-size:12px;color:var(--ink-3)}
+.btn{display:inline-block;border:1px solid var(--rule);background:var(--sheet);border-radius:999px;padding:7px 14px;font-size:13.5px;font-weight:700;cursor:pointer;color:var(--ink);text-decoration:none;white-space:nowrap}
+.btn.primary{background:var(--ai);border-color:var(--ai);color:var(--sheet)}
+.btn:focus-visible,.chipbtn:focus-visible{outline:2px solid var(--ai);outline-offset:2px}
+.stack{display:grid;gap:12px;padding-block:14px 32px}
+.pnav{display:flex;border-top:1px solid var(--rule-2)}
+.pnav a{flex:1;text-align:center;padding:9px 4px 8px;font-size:14px;font-weight:700;color:var(--ink-3);text-decoration:none;border-bottom:3px solid transparent}
+.pnav a[aria-current="page"]{color:var(--ai);border-bottom-color:var(--ai)}
+.sec{background:var(--sheet);border:1px solid var(--rule-2);border-radius:var(--r);padding:14px;display:grid;gap:10px;min-width:0}
+.sec h2{margin:0;font-size:15px;font-weight:700;display:flex;justify-content:space-between;align-items:baseline;gap:8px;flex-wrap:wrap}
+.sec h2 span{font-size:12px;font-weight:400;color:var(--ink-3)}
+.note{font-size:12px;color:var(--ink-3);line-height:1.55;margin:0}
+.demo{margin:12px 0 0;padding:8px 12px;border-radius:8px;background:var(--warn-bg);font-size:13px}
+
+/* いまの局面 */
+.now{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:10px}
+.now .box{border:1px solid var(--rule);border-radius:10px;padding:10px 12px;display:grid;gap:2px;min-width:0}
+.now .lab{font-size:11.5px;color:var(--ink-3)}
+.now .ph{font-size:24px;font-weight:800;line-height:1.25}
+.now .sub{font-size:12px;color:var(--ink-2)}
+.lead{margin:0;font-size:14px;line-height:1.7}
+.lead b{color:var(--ai)}
+.blist{display:grid;gap:8px}
+.brow{display:grid;grid-template-columns:minmax(0,1fr) 92px;gap:4px 10px;align-items:center;padding:10px 12px;border:1px solid var(--rule);border-radius:10px;color:var(--ink);text-decoration:none;background:var(--sheet)}
+.brow:hover{border-color:var(--ai)}
+.brow .nm{font-weight:700;font-size:15px;min-width:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.brow .cd{font-size:12px;color:var(--ink-3);margin-right:6px;font-weight:400}
+.brow .mt{grid-column:1 / -1;display:flex;flex-wrap:wrap;gap:2px 12px;font-size:12.5px;color:var(--ink-2)}
+.brow .mt b{color:var(--ink);font-weight:700}
+.brow .nm{grid-column:1;grid-row:1}
+.brow svg{width:92px;height:32px;display:block;grid-column:2;grid-row:1}
+.brow .sub{font-size:12px;color:var(--ink-3);font-weight:400}
+.ctl{display:flex;flex-wrap:wrap;gap:8px 14px;align-items:center}
+.ctl .lab{font-size:12.5px;font-weight:700;color:var(--ink-2)}
+.pchip{display:inline-block;padding:1px 8px;border-radius:999px;font-size:11.5px;font-weight:700;white-space:nowrap;border:1px solid currentColor}
+
+/* 図 */
+.diagram{width:100%;max-width:440px;display:block;margin:0 auto}
+.legend{display:flex;flex-wrap:wrap;gap:4px 12px;font-size:11.5px;color:var(--ink-3)}
+.legend i{display:inline-block;width:10px;height:3px;border-radius:2px;margin-right:4px;vertical-align:middle}
+
+/* 注目セクター */
+.focus{display:grid;gap:10px}
+@media(min-width:560px){.focus{grid-template-columns:1fr 1fr}}
+.fcard{border:1px solid var(--rule);border-radius:10px;padding:10px 12px;display:grid;gap:6px;min-width:0}
+.fcard h3{margin:0;font-size:13.5px;display:flex;align-items:center;gap:8px;flex-wrap:wrap}
+.grp{display:grid;gap:2px}
+.grp .gname{font-weight:700;font-size:14px;display:flex;justify-content:space-between;gap:8px}
+.grp .gsec{font-size:12px;color:var(--ink-2)}
+.up{color:var(--rise)} .dn{color:var(--fall)}
+
+/* 指標 */
+.tblwrap{overflow-x:auto;-webkit-overflow-scrolling:touch}
+table{border-collapse:collapse;width:100%;font-size:13px}
+th,td{padding:7px 6px;border-bottom:1px solid var(--rule-2);text-align:left;white-space:nowrap}
+th{font-size:11.5px;color:var(--ink-3);font-weight:500}
+td.r,th.r{text-align:right}
+td.wrapcell{white-space:normal;min-width:9em}
+
+/* 相場の流れ */
+.bars{display:grid;gap:8px}
+.bar{display:grid;grid-template-columns:4.2em 1fr 4.4em;gap:8px;align-items:center;font-size:13px}
+.bar .track{position:relative;height:12px;background:var(--rule-2);border-radius:3px}
+.bar .track .mid{position:absolute;left:50%;top:-3px;bottom:-3px;width:1px;background:var(--ink-3)}
+.bar .track i{position:absolute;top:0;bottom:0;border-radius:3px}
+.bar .v{text-align:right;font-weight:700}
+.mcgrid{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:6px 12px;margin-top:4px}
+@media(min-width:560px){.mcgrid{grid-template-columns:repeat(4,minmax(0,1fr))}}
+.mcgrid div{display:grid;gap:0;border:1px solid var(--rule-2);border-radius:8px;padding:6px 10px;min-width:0}
+.mcgrid span{font-size:12px}
+.mcgrid b{font-size:15px}
+.mcgrid small{font-size:11px;color:var(--ink-3)}
+.chart{width:100%;display:block}
+.seg{display:flex;flex-wrap:wrap;gap:6px}
+.chipbtn{border:1px solid var(--rule);background:transparent;border-radius:999px;padding:5px 12px;font-size:13px;cursor:pointer}
+.chipbtn[aria-pressed="true"]{background:var(--ai-soft);border-color:var(--ai);color:var(--ai);font-weight:700}
+details summary{cursor:pointer;font-size:13px;color:var(--ink-2)}
+ol.howto{margin:0;padding-left:1.3em;display:grid;gap:6px;font-size:13.5px;line-height:1.65}
+
+/* ロック */
+.lock{min-height:60vh;display:grid;place-items:center}
+.lock form{width:min(340px,100%);display:grid;gap:12px;background:var(--sheet);border:1px solid var(--rule);border-radius:14px;padding:22px}
+.lock h2{margin:0;font-size:20px}
+.lock input[type=password]{width:100%;padding:10px 12px;border:1px solid var(--rule);border-radius:8px;background:var(--paper);font-size:16px}
+.lock .err{color:var(--ai);font-size:13px;min-height:1.2em;margin:0}
+.lock label.chk{display:flex;gap:8px;align-items:center;font-size:13px;color:var(--ink-2)}
+</style>
+</head>
+<body>
+<header class="top">
+  <div class="wrap">
+    <div class="brand">
+      <h1>セクターローテーション</h1>
+      <p id="asof">データを読み込んでいます</p>
+    </div>
+    <a class="btn" href="index.html#conditions">条件</a>
+  </div>
+  <nav class="wrap pnav" aria-label="ページ">
+    <a href="index.html#main">うねり底</a>
+    <a href="index.html#popular">人気株</a>
+    <a href="sector.html" aria-current="page">セクター</a>
+  </nav>
+</header>
+
+<div class="wrap" id="lockHost" hidden></div>
+<main class="wrap" id="main">
+  <div id="demoNote" class="demo" hidden>これは架空のデータで作ったデモ表示です。金利・景気の数値も実在のものではありません。</div>
+  <div class="stack" id="body"><p class="note">読み込み中です。</p></div>
+</main>
+
+<script>
+(() => {
+"use strict";
+const $ = s => document.querySelector(s);
+const store = {
+  get(k, d){ try{ const v = localStorage.getItem(k); return v ? JSON.parse(v) : d; }catch(e){ return d; } },
+  set(k, v){ try{ localStorage.setItem(k, JSON.stringify(v)); }catch(e){} }
+};
+const esc = s => String(s ?? "").replace(/[&<>"']/g, c => ({"&":"&amp;","<":"&lt;",">":"&gt;",'"':"&quot;","'":"&#39;"}[c]));
+const spct = (v, d=1) => v == null ? "–" : (v > 0 ? "+" : "") + (v * 100).toFixed(d) + "%";
+const ppt = v => v == null ? "–" : (v > 0 ? "+" : "") + (v * 100).toFixed(1) + "pt";
+// 金額(億円 → 1兆円以上は兆円)。okuS は符号つき
+const oku = v => v == null ? "–" : v >= 10000 ? (v / 10000).toFixed(2) + "兆円" : Math.round(v).toLocaleString("ja-JP") + "億円";
+const okuS = v => v == null || isNaN(v) ? "–" : (v > 0 ? "+" : v < 0 ? "−" : "") +
+  (Math.abs(v) >= 10000 ? (Math.abs(v) / 10000).toFixed(2) + "兆円" : Math.round(Math.abs(v)).toLocaleString("ja-JP") + "億円");
+
+const PHASES = ["回復期", "好況期", "後退期", "不況期"];
+const PCOLOR = {"回復期":"var(--p1)", "好況期":"var(--p2)", "後退期":"var(--p3)", "不況期":"var(--p4)"};
+const PDESC = {
+  "回復期": "金利が低く、景気が良くなってきた局面",
+  "好況期": "景気が良いまま、金利が上がってきた局面",
+  "後退期": "金利が高いまま、景気が弱くなってきた局面",
+  "不況期": "金利が低くなり、景気が弱い局面",
+};
+const PGROUPS = {
+  "回復期": ["金融", "ハイテク"],
+  "好況期": ["製造業", "素材", "消費財"],
+  "後退期": ["エネルギー"],
+  "不況期": ["通信", "ヘルスケア", "生活必需品", "公共"],
+};
+const next = p => PHASES[(PHASES.indexOf(p) + 1) % 4];
+const pchip = p => p ? `<span class="pchip" style="color:${PCOLOR[p]}">${esc(p)}</span>` : "";
+let DATA = null, period = store.get("rot.period", 13);
+let bPhase = store.get("rot.bphase", null), bPos = store.get("rot.bpos", 30), bWave = store.get("rot.bwave", true), bMore = false;
+const kkey = s => String(s || "").replace(/[、､,，・･ 　]/g, "");
+
+/* ---------- セクターダイヤグラム ---------- */
+// 横軸=金利(左が低い・右が高い) 縦軸=景気(上が良い・下が悪い)。4つの象限が4つの局面で、時計回りに循環する
+function diagram(macro, marketLead){
+  const S = 400, C = S / 2, R = 150;
+  const quad = {  // 象限の中心方向(x,y)
+    "回復期": [-1, -1], "好況期": [1, -1], "後退期": [1, 1], "不況期": [-1, 1],
+  };
+  const cur = macro && macro.phase;
+  let g = "";
+  // 4つの扇形
+  const arc = (a0, a1) => {
+    const p = a => [C + R * Math.cos(a), C + R * Math.sin(a)];
+    const [x0, y0] = p(a0), [x1, y1] = p(a1);
+    return `M${C} ${C} L${x0.toFixed(1)} ${y0.toFixed(1)} A${R} ${R} 0 0 1 ${x1.toFixed(1)} ${y1.toFixed(1)}Z`;
+  };
+  const ang = {"好況期": [-Math.PI/2, 0], "後退期": [0, Math.PI/2], "不況期": [Math.PI/2, Math.PI], "回復期": [Math.PI, 1.5*Math.PI]};
+  PHASES.forEach(p => {
+    const on = p === cur;
+    g += `<path d="${arc(...ang[p])}" fill="${PCOLOR[p]}" fill-opacity="${on ? 0.22 : 0.07}" stroke="var(--sheet)" stroke-width="2"/>`;
+  });
+  // 軸
+  g += `<line x1="${C - R - 18}" y1="${C}" x2="${C + R + 18}" y2="${C}" stroke="var(--ink-2)" stroke-width="1.2"/>
+        <line x1="${C}" y1="${C - R - 18}" x2="${C}" y2="${C + R + 18}" stroke="var(--ink-2)" stroke-width="1.2"/>`;
+  const t = (x, y, s, o={}) => `<text x="${x}" y="${y}" font-size="${o.fs||11}" fill="${o.fill||"var(--ink-2)"}" text-anchor="${o.a||"middle"}" font-weight="${o.w||400}" font-family="var(--f)">${s}</text>`;
+  g += t(C, C - R - 24, "景気が良い", {w:700}) + t(C, C + R + 34, "景気が悪い", {w:700});
+  g += t(C - R - 4, C - 8, "金利が低い", {a:"end", w:700}) + t(C + R + 4, C - 8, "金利が高い", {a:"start", w:700});
+  // セクター名と局面名
+  PHASES.forEach(p => {
+    const [qx, qy] = quad[p], on = p === cur, lead = p === marketLead;
+    const cx = C + qx * R * 0.48, cy = C + qy * R * 0.46;
+    const names = PGROUPS[p];
+    names.forEach((n, i) => {
+      g += t(cx, cy + (i - (names.length - 1) / 2) * 15 + 4, n, {fs: 12.5, fill: "var(--ink)", w: on ? 700 : 400});
+    });
+    const lx = C + qx * (R + 6), ly = C + qy * (R - 2);
+    g += `<g><rect x="${qx < 0 ? lx - 50 : lx}" y="${ly - (qy < 0 ? 18 : -2)}" width="50" height="18" rx="9" fill="${PCOLOR[p]}" fill-opacity="${on ? 1 : 0.16}"/>` +
+      t(qx < 0 ? lx - 25 : lx + 25, ly - (qy < 0 ? 18 : -2) + 13, p, {fs: 11, fill: on ? "var(--sheet)" : PCOLOR[p], w: 700}) + `</g>`;
+    if (lead) g += t(cx, cy + (qy < 0 ? -names.length * 9 - 10 : names.length * 9 + 16), "★相場の主役", {fs: 10.5, fill: PCOLOR[p], w: 700});
+  });
+  // 時計回りの矢印
+  g += `<path d="M${C - 16} ${C - 4} A16 16 0 1 1 ${C - 4} ${C + 16}" fill="none" stroke="var(--ink-3)" stroke-width="1.4"/>
+        <path d="M${C - 4} ${C + 16} l6 -5 l-1 8 z" fill="var(--ink-3)"/>`;
+  // マクロの現在地と1年の軌跡
+  if (macro && macro.trail && macro.trail.length){
+    const tr = macro.trail.slice(-13);
+    const mr = Math.max(0.5, ...tr.map(p => Math.abs(p[1]))), me = Math.max(0.5, ...tr.map(p => Math.abs(p[2])));
+    const px = r => C + Math.max(-1, Math.min(1, r / mr)) * R * 0.8;
+    const py = e => C - Math.max(-1, Math.min(1, e / me)) * R * 0.8;
+    const pts = tr.map(p => [px(p[1]), py(p[2])]);
+    g += `<polyline points="${pts.map(p => p.map(v => v.toFixed(1)).join(",")).join(" ")}" fill="none" stroke="var(--ink)" stroke-opacity=".55" stroke-width="1.6" stroke-dasharray="3 3"/>`;
+    pts.forEach((p, i) => { if (i < pts.length - 1) g += `<circle cx="${p[0].toFixed(1)}" cy="${p[1].toFixed(1)}" r="2.6" fill="var(--ink)" fill-opacity="${0.15 + 0.6 * i / pts.length}"/>`; });
+    const [fx, fy] = pts[0], [lx, ly] = pts[pts.length - 1];
+    g += t(fx, fy - 7, "1年前", {fs: 10, fill: "var(--ink-3)"});
+    g += `<circle cx="${lx.toFixed(1)}" cy="${ly.toFixed(1)}" r="8" fill="var(--ai)" stroke="var(--sheet)" stroke-width="2.5"/>` +
+         t(lx, ly - 13, "いま", {fs: 12, fill: "var(--ai)", w: 800});
+  }
+  return `<svg class="diagram" viewBox="-20 -6 ${S + 40} ${S + 22}" role="img" aria-label="セクターダイヤグラムと現在地">${g}</svg>`;
+}
+
+/* ---------- 相場の流れ ---------- */
+function phaseBars(mk){
+  const rows = PHASES.map(p => mk.phases.find(x => x.name === p)).filter(Boolean);
+  const key = "x" + period;
+  const mx = Math.max(0.02, ...rows.map(r => Math.abs(r[key] ?? 0)));
+  const md = "md" + period;
+  const mcLine = rows.some(r => r[md] != null) ? `<div class="mcgrid">${rows.map(r =>
+    `<div><span style="color:${PCOLOR[r.name]};font-weight:700">${esc(r.name)}</span><b class="num ${r[md] >= 0 ? "up" : "dn"}">${okuS(r[md])}</b><small>${oku(r.mc)}</small></div>`).join("")}</div>
+    <p class="note">局面ごとのセクターの時価総額の合計と、その増減です(今の株数で計算した概算)。</p>` : "";
+  return `<div class="bars">${rows.map(r => {
+    const v = r[key] ?? 0, w = Math.abs(v) / mx * 50;
+    return `<div class="bar"><span style="color:${PCOLOR[r.name]};font-weight:700">${esc(r.name)}</span>
+      <span class="track"><span class="mid"></span><i style="background:${PCOLOR[r.name]};${v >= 0 ? `left:50%` : `left:${50 - w}%`};width:${w}%"></i></span>
+      <span class="v num ${v >= 0 ? "up" : "dn"}">${ppt(r[key])}</span></div>`;
+  }).join("")}</div>${mcLine}`;
+}
+function lineChart(mk){
+  const ser = mk.lines && mk.lines.series || {};
+  const keys = PHASES.filter(p => ser[p] && ser[p].length > 1);
+  if (!keys.length) return "";
+  const W = 360, H = 170, L = 6, R = 50, T = 10, B = 22;
+  const all = keys.flatMap(k => ser[k]);
+  const mn = Math.min(0, ...all), mx = Math.max(0, ...all), n = ser[keys[0]].length;
+  const x = i => L + i / (n - 1) * (W - L - R), y = v => T + (1 - (v - mn) / ((mx - mn) || 1)) * (H - T - B);
+  let g = `<line x1="${L}" x2="${W - R}" y1="${y(0)}" y2="${y(0)}" stroke="var(--ink-3)" stroke-dasharray="3 3"/>
+           <text x="${L + 2}" y="${y(0) - 4}" font-size="9.5" fill="var(--ink-3)" font-family="var(--f)">市場全体=0</text>`;
+  const ends = [];
+  keys.forEach(k => {
+    const d = ser[k].map((v, i) => (i ? "L" : "M") + x(i).toFixed(1) + " " + y(v).toFixed(1)).join("");
+    g += `<path d="${d}" fill="none" stroke="${PCOLOR[k]}" stroke-width="1.8" stroke-linejoin="round"/>`;
+    ends.push([y(ser[k][n - 1]), k, ser[k][n - 1]]);
+  });
+  // 右端のラベルを重ならないように並べる
+  ends.sort((a, b) => a[0] - b[0]);
+  for (let i = 1; i < ends.length; i++) if (ends[i][0] - ends[i - 1][0] < 12) ends[i][0] = ends[i - 1][0] + 12;
+  ends.forEach(([yy, k, v]) => { g += `<text x="${W - R + 4}" y="${yy + 3.5}" font-size="10" font-weight="700" fill="${PCOLOR[k]}" font-family="var(--f)">${spct(v, 0)}</text>`; });
+  const d0 = mk.lines.d0 ? mk.lines.d0.slice(0, 7).replace("-", "/") : "1年前";
+  g += `<text x="${L}" y="${H - 5}" font-size="10" fill="var(--ink-3)" font-family="var(--f)">${d0}</text>
+        <text x="${W - R}" y="${H - 5}" font-size="10" fill="var(--ink-3)" text-anchor="end" font-family="var(--f)">最新</text>`;
+  return `<svg class="chart" viewBox="0 0 ${W} ${H}" role="img" aria-label="局面ごとの市場に対する強さの推移">${g}</svg>
+    <div class="legend">${keys.map(k => `<span><i style="background:${PCOLOR[k]}"></i>${k}のセクター</span>`).join("")}</div>`;
+}
+function sectorTable(mk){
+  const key = "r" + period, xkey = "x" + period;
+  const rows = mk.sectors.slice().sort((a, b) => (b[key] ?? -9) - (a[key] ?? -9));
+  return `<div class="tblwrap"><table>
+    <thead><tr><th>#</th><th>業種</th><th>局面</th><th class="r">騰落</th><th class="r">市場との差</th><th class="r">時価総額の増減</th><th class="r">時価総額</th><th class="r">銘柄数</th></tr></thead>
+    <tbody>${rows.map((r, i) => `<tr><td class="num">${i + 1}</td><td>${esc(r.name)}<br><span class="note">${esc(r.group || "未分類")}</span></td>
+      <td>${pchip(r.phase)}</td><td class="r num ${r[key] >= 0 ? "up" : "dn"}">${spct(r[key])}</td>
+      <td class="r num ${r[xkey] >= 0 ? "up" : "dn"}">${ppt(r[xkey])}</td>
+      <td class="r num ${r["md" + period] >= 0 ? "up" : "dn"}">${okuS(r["md" + period])}</td><td class="r num">${oku(r.mc)}</td><td class="r num">${r.n}</td></tr>`).join("")}
+    </tbody></table></div>`;
+}
+
+/* ---------- ページ全体 ---------- */
+/* ---------- 局面ごとの底値圏の銘柄 ---------- */
+function bottomSection(cur, mk){
+  if (!DATA.stocks || !mk) return "";
+  // 業種 → セクター(グループ) → 局面
+  const g2p = {}, s2g = {};
+  mk.groups.forEach(g => { g2p[g.name] = g.phase; g.sectors.forEach(x => s2g[kkey(x)] = g.name); });
+  const ph = bPhase && PHASES.includes(bPhase) ? bPhase : (cur ? next(cur) : "回復期");
+  const cond = Object.assign({tr: -5, tv: 10, mkt: ["プライム", "スタンダード", "グロース"]}, store.get("uneri.cfg", {}));   // 共通の「条件」
+  const rows = DATA.stocks.filter(st => {
+    if (st.x10) return false;                           // 10年分のデータがない銘柄
+    if (!cond.mkt.includes(st.m)) return false;
+    if (cond.tv > 0 && (st.tv == null || st.tv < cond.tv)) return false;
+    const g = s2g[kkey(st.s)];
+    if (!g || g2p[g] !== ph) return false;
+    if (st.pos * 100 > bPos) return false;
+    if (bWave && (st.sw || 0) < 3) return false;
+    if (st.tr != null && st.tr * 100 < cond.tr) return false;   // 10年ずっと下げている銘柄は外す
+    return true;
+  }).sort((a, b) => a.pos - b.pos);
+  const shown = bMore ? rows : rows.slice(0, 15);
+  const tag = p => p === cur ? "いま" : cur && p === next(cur) ? "次" : "";
+  const spark = st => {
+    const c = (st.ch && st.ch.c || []).filter(v => v != null);
+    if (c.length < 2) return "";
+    const lo = Math.log(Math.min(...c)), hi = Math.log(Math.max(...c)), W = 92, H = 32;
+    const x = i => i / (c.length - 1) * (W - 4) + 2, y = v => H - 3 - (Math.log(v) - lo) / ((hi - lo) || 1) * (H - 6);
+    const d = c.map((v, i) => (i ? "L" : "M") + x(i).toFixed(1) + " " + y(v).toFixed(1)).join("");
+    return `<svg viewBox="0 0 ${W} ${H}" aria-hidden="true"><path d="${d}" fill="none" stroke="var(--ai)" stroke-width="1.3"/><circle cx="${x(c.length - 1)}" cy="${y(c[c.length - 1])}" r="2.6" fill="var(--rise)"/></svg>`;
+  };
+  const dv = v => v == null ? "–" : v === 0 ? "無配" : Number(v).toLocaleString("ja-JP", {maximumFractionDigits: 2}) + "円";
+  return `<section class="sec" id="bottoms">
+    <h2>底値圏の銘柄 <span>10年チャートの安値に近い順</span></h2>
+    <div class="seg" role="group" aria-label="局面">${PHASES.map(p =>
+      `<button class="chipbtn" data-bp="${p}" aria-pressed="${p === ph}">${p}${tag(p) ? `(${tag(p)})` : ""}</button>`).join("")}</div>
+    <div class="ctl">
+      <span class="lab">10年位置</span>
+      <div class="seg">${[15, 30, 45].map(v => `<button class="chipbtn" data-bpos="${v}" aria-pressed="${v === bPos}">${v}%以下</button>`).join("")}</div>
+      <button class="chipbtn" data-bwave aria-pressed="${bWave}">うねり型だけ(谷3回以上)</button>
+    </div>
+    <p class="note">${esc(ph)}のセクター(${PGROUPS[ph].join("・")})から <b class="num">${rows.length}</b> 銘柄。タップすると、うねり底スクリーナーで詳しく見られます。</p>
+    ${rows.length ? `<div class="blist">${shown.map(st => `<a class="brow" href="index.html#c${encodeURIComponent(st.c)}">
+        <span class="nm"><span class="cd">${esc(st.c)}</span>${esc(st.n)}<br><span class="sub">${esc(s2g[kkey(st.s)])} · ${esc(st.s)} · ${Number(st.p).toLocaleString("ja-JP")}円</span></span>
+        ${spark(st)}
+        <span class="mt"><span>10年位置 <b>${(st.pos * 100).toFixed(0)}%</b></span><span>谷 <b>${st.sw}回</b></span>
+          ${st.eq != null ? `<span>自己資本 <b>${(st.eq * 100).toFixed(0)}%</b></span>` : ""}<span>年間配当(予) <b>${dv(st.dv)}</b></span>
+          ${st.mr != null ? `<span>信用倍率 <b>${st.mr.toFixed(2)}倍</b></span>` : ""}
+          ${st.earn && st.earn.rows ? (() => { const op = st.earn.rows.find(r => r[0] === "営業利益"), y = op ? op[2] : null;
+            return `<span>決算(${esc(st.earn.dt.slice(5).replace("-", "/"))}・${esc(st.earn.pt)}) 営業益 <b class="${y == null ? "" : y >= 0 ? "up" : "dn"}">${y == null ? "–" : (y > 0 ? "+" : "") + (y * 100).toFixed(0) + "%"}</b></span>`; })() : ""}
+          ${st.mc != null ? `<span>時価総額 <b>${oku(st.mc)}</b>${st.dh != null ? `(高値から ${okuS(st.mc - st.mc / (1 + st.dh))})` : ""}</span>` : ""}</span>
+      </a>`).join("")}</div>
+      ${rows.length > shown.length ? `<button class="btn" data-bmore style="justify-self:start">残り ${rows.length - shown.length} 銘柄も表示</button>` : ""}`
+      : `<p class="note">条件に合う銘柄がありません。10年位置を広げるか、「うねり型だけ」を外してください。</p>`}
+  </section>`;
+}
+
+const PERIODS = [[4, "1か月"], [13, "3か月"], [26, "半年"], [52, "1年"]];
+function periodSeg(){
+  return `<div class="seg" role="group" aria-label="比べる期間">${PERIODS.map(([k, l]) =>
+    `<button class="chipbtn" data-p="${k}" aria-pressed="${k === period}">${l}</button>`).join("")}</div>`;
+}
+function render(){
+  const rot = DATA.rot || {}, macro = rot.macro, mk = rot.market;
+  const lead = mk && mk.lead, plabel = (PERIODS.find(p => p[0] === period) || [0, ""])[1];
+  const gx = name => mk && mk.groups.find(g => g.name === name);
+  let html = "";
+
+  // 1. いまの局面
+  const cur = macro ? macro.phase : lead;
+  let leadText;
+  if (macro && lead){
+    leadText = macro.phase === lead
+      ? `米国の金利と景気から見た局面と、日本株の資金の流れが<b>どちらも「${macro.phase}」</b>でそろっています。`
+      : `米国の金利と景気は<b>「${macro.phase}」</b>を、日本株の資金の流れは<b>「${lead}」</b>のセクターを示しています。` +
+        (lead === next(macro.phase) ? "相場が次の局面を一歩先回りしている可能性があります。"
+          : macro.phase === next(lead) ? "相場はまだ前の局面のセクターに資金が残っています。"
+          : "両者がずれているので、局面の変わり目かもしれません。");
+  } else if (macro) leadText = `米国の金利と景気から見ると<b>「${macro.phase}」</b>です。`;
+  else if (lead) leadText = `日本株の資金の流れからは<b>「${lead}」</b>のセクターが強くなっています(金利・景気のデータは取得できませんでした)。`;
+  else leadText = "判定に必要なデータがありません。";
+  html += `<section class="sec">
+    <h2>いまの局面 <span>${macro ? `米国指標 ${esc(macro.d)} 時点` : ""}</span></h2>
+    <div class="now">
+      <div class="box"><span class="lab">金利 × 景気(米国)</span><span class="ph" style="color:${macro ? PCOLOR[macro.phase] : "var(--ink-3)"}">${macro ? esc(macro.phase) : "–"}</span>
+        <span class="sub">${macro ? `1年前は ${esc(macro.phase_1y)}` : "データなし"}</span></div>
+      <div class="box"><span class="lab">日本株の資金の流れ(3か月)</span><span class="ph" style="color:${lead ? PCOLOR[lead] : "var(--ink-3)"}">${lead ? esc(lead) : "–"}</span>
+        <span class="sub">${mk && mk.rising ? `直近1か月で勢いがあるのは ${esc(mk.rising)}` : ""}</span></div>
+    </div>
+    <p class="lead">${leadText}${cur ? ` ${esc(PDESC[cur])}で、次は時計回りに<b>「${next(cur)}」</b>(${PGROUPS[next(cur)].join("・")})へ移っていきやすいとされます。` : ""}</p>
+  </section>`;
+
+  // 2. ダイヤグラム
+  html += `<section class="sec">
+    <h2>セクターダイヤグラム <span>時計回りに循環</span></h2>
+    ${diagram(macro, lead)}
+    <div class="legend"><span><i style="background:var(--ai)"></i>いま(金利×景気)</span><span><i style="background:var(--ink);opacity:.5"></i>過去1年の動き</span>${lead ? `<span>★ 日本株で3か月いちばん強い局面</span>` : ""}</div>
+    <p class="note">横は金利(左が低い・右が高い)、縦は景気(上が良い・下が悪い)です。点は米国の金利と景気の指標から計算した位置で、点線が過去1年の動きです。</p>
+  </section>`;
+
+  // 3. 注目セクター(いま と 次)
+  if (cur){
+    const card = (p, title) => `<div class="fcard"><h3>${title} ${pchip(p)}</h3>${PGROUPS[p].map(name => {
+      const g = gx(name);
+      return `<div class="grp"><div class="gname"><span>${esc(name)}</span>${g ? `<span class="num ${g["x" + period] >= 0 ? "up" : "dn"}">市場比 ${ppt(g["x" + period])}</span>` : ""}</div>
+        <div class="gsec">${esc((g ? g.sectors : []).join("・"))}</div>
+        ${g && g["md" + period] != null ? `<div class="gsec">時価総額 ${oku(g.mc)}(${plabel}で <span class="num ${g["md" + period] >= 0 ? "up" : "dn"}">${okuS(g["md" + period])}</span>)</div>` : ""}</div>`;
+    }).join("")}</div>`;
+    html += `<section class="sec">
+      <h2>注目されやすいセクター <span>市場比は${plabel}・日本株</span></h2>
+      <div class="focus">${card(cur, "いま")}${card(next(cur), "次に来やすい")}</div>
+      ${periodSeg()}
+    </section>`;
+  }
+
+  // 3.5 底値圏の銘柄
+  html += bottomSection(cur, mk);
+
+  // 4. 指標の数値
+  if (macro){
+    html += `<section class="sec">
+      <h2>金利と景気の指標 <span>出典: FRED(米セントルイス連銀)</span></h2>
+      <div class="tblwrap"><table>
+        <thead><tr><th>指標</th><th class="r">最新</th><th class="r">1年前</th><th class="r">向き</th></tr></thead>
+        <tbody>${macro.ind.map(i => {
+          const unit = i.id === "CFNAIMA3" ? "" : "%", dv = i.v != null && i.v1y != null ? i.v - i.v1y : null;
+          return `<tr><td class="wrapcell">${esc(i.name)}<br><span class="note">${esc(i.d)}</span></td>
+            <td class="r num">${i.v == null ? "–" : i.v.toFixed(2) + unit}</td><td class="r num">${i.v1y == null ? "–" : i.v1y.toFixed(2) + unit}</td>
+            <td class="r">${dv == null ? "–" : dv > 0.05 ? "↑上昇" : dv < -0.05 ? "↓低下" : "→横ばい"}</td></tr>`;
+        }).join("")}</tbody></table></div>
+      <p class="note">金利は米国10年国債利回りが過去5年の平均より高いか低いか(1年の変化も加味)で、景気は全米活動指数(0より上なら平均以上の成長)と失業率の1年の変化で判定しています。いまの値は金利 ${macro.r > 0 ? "+" : ""}${macro.r.toFixed(2)}・景気 ${macro.e > 0 ? "+" : ""}${macro.e.toFixed(2)} です(どちらも0が境目)。</p>
+    </section>`;
+  }
+
+  // 5. 相場の流れ
+  if (mk){
+    html += `<section class="sec">
+      <h2>日本株の資金の流れ <span>局面ごとのセクターの市場比(${plabel})</span></h2>
+      ${phaseBars(mk)}
+      ${periodSeg()}
+      <p class="note" style="margin-top:4px">市場全体(全銘柄の中央値)と比べて、各局面のセクターがどれだけ強いかです。右に伸びるほど資金が集まっています。</p>
+      ${lineChart(mk)}
+    </section>
+    <section class="sec">
+      <h2>33業種ランキング <span>${plabel}の騰落率順</span></h2>
+      ${periodSeg()}
+      ${sectorTable(mk)}
+      <p class="note">騰落率は各業種の銘柄の中央値、時価総額は各業種の合計です(過去の時価総額は今の株数で計算した概算)。${mk.market && mk.market.mc != null ? `市場全体の時価総額は ${oku(mk.market.mc)}、${plabel}で ${okuS(mk.market["md" + period])} です。` : ""}表は横にスクロールできます。</p>
+    </section>`;
+  }
+
+  // 6. 使い方
+  html += `<section class="sec">
+    <h2>使い方のヒント</h2>
+    <ol class="howto">
+      <li>このダイヤグラムは米国市場向けに考えられたものなので、日本株では参考程度にとどめ、主に<b>米国の景気の循環</b>に合わせて見ます。</li>
+      <li>局面が時計回りに移るのに合わせて、<b>次の局面のセクターへ資金を移します</b>。例:好景気のまま金利が上がってきたら、回復期(金融・ハイテク)から好況期(製造業・素材・消費財)へ。</li>
+      <li>関連する銘柄にも目を向けます。たとえば銀行株が上がると次は証券株、海運株の次は運ばれる鉄鋼や石油関連、というように連想で人気が移ることがあります。</li>
+      <li>逆張りなら、うねり底スクリーナーで「次に来やすい局面」のセクターの底値銘柄を探すと、循環を先回りできます。</li>
+    </ol>
+    <details><summary>東証33業種の振り分け</summary>
+      <div class="tblwrap" style="margin-top:8px"><table><tbody>${mk ? mk.groups.slice().sort((a, b) => PHASES.indexOf(a.phase) - PHASES.indexOf(b.phase)).map(g =>
+        `<tr><td>${pchip(g.phase)}</td><td><b>${esc(g.name)}</b></td><td class="wrapcell">${esc(g.sectors.join("・"))}</td></tr>`).join("") : ""}</tbody></table></div>
+      <p class="note" style="margin-top:6px">ダイヤグラムのセクターに当てはめるため、卸売業(総合商社)はエネルギー、陸運業は公共、不動産業は金融に入れています。</p>
+    </details>
+    <p class="note">局面の判定は目安で、売買の推奨ではありません。</p>
+  </section>`;
+
+  $("#body").innerHTML = html;
+}
+document.addEventListener("click", e => {
+  const bp = e.target.closest("[data-bp]"), bpos = e.target.closest("[data-bpos]");
+  if (bp){ bPhase = bp.dataset.bp; bMore = false; store.set("rot.bphase", bPhase); return keepScroll(); }
+  if (bpos){ bPos = Number(bpos.dataset.bpos); store.set("rot.bpos", bPos); return keepScroll(); }
+  if (e.target.closest("[data-bwave]")){ bWave = !bWave; store.set("rot.bwave", bWave); return keepScroll(); }
+  if (e.target.closest("[data-bmore]")){ bMore = true; return keepScroll(); }
+  const b = e.target.closest("[data-p]"); if (!b) return;
+  period = Number(b.dataset.p); store.set("rot.period", period); keepScroll();
+});
+
+// 再描画してもスクロール位置がずれないようにする
+function keepScroll(){
+  const y = window.scrollY; render(); window.scrollTo(0, y);
+}
+
+/* ---------- 読み込みと復号(うねり底スクリーナーと同じデータ・同じパスワード) ---------- */
+const b64 = s => Uint8Array.from(atob(s), c => c.charCodeAt(0));
+async function decrypt(env, password){
+  const base = await crypto.subtle.importKey("raw", new TextEncoder().encode(password), "PBKDF2", false, ["deriveKey"]);
+  const key = await crypto.subtle.deriveKey({name:"PBKDF2", salt:b64(env.salt), iterations:env.iter, hash:"SHA-256"},
+    base, {name:"AES-GCM", length:256}, false, ["decrypt"]);
+  // v2: 暗号文は data.bin(バイナリ)。v1: data.enc の中に base64 で入っている
+  const ct = env.bin ? (env._ct || (env._ct = new Uint8Array(await (await fetch(env.bin, {cache:"no-cache"})).arrayBuffer()))) : b64(env.ct);
+  const gz = await crypto.subtle.decrypt({name:"AES-GCM", iv:b64(env.iv)}, key, ct);
+  const stream = new Blob([gz]).stream().pipeThrough(new DecompressionStream("gzip"));
+  return JSON.parse(await new Response(stream).text());
+}
+function boot(data){
+  DATA = data;
+  $("#lockHost").hidden = true; $("#main").hidden = false;
+  $("#asof").textContent = `${data.asof} 終値 · 更新 ${data.generated}`;
+  $("#demoNote").hidden = !data.demo;
+  if (!data.rot){ $("#body").innerHTML = `<p class="note">セクターのデータがまだありません。次回の自動更新で作られます。</p>`; return; }
+  render();
+}
+function showLock(env){
+  $("#main").hidden = true; $("#lockHost").hidden = false;
+  $("#lockHost").innerHTML = `<div class="lock"><form id="lockForm">
+    <h2>パスワード</h2>
+    <p class="note">うねり底スクリーナーと同じパスワードです。</p>
+    <input type="password" id="pw" autocomplete="current-password" required aria-label="パスワード">
+    <label class="chk"><input type="checkbox" id="remember" checked>このiPhoneに記憶する</label>
+    <p class="err" id="pwErr"></p>
+    <button class="btn primary" type="submit">表示する</button></form></div>`;
+  $("#asof").textContent = "ロック中";
+  $("#lockForm").addEventListener("submit", async e => {
+    e.preventDefault();
+    $("#pwErr").textContent = "確認しています…";
+    try{
+      const pw = $("#pw").value, data = await decrypt(env, pw);
+      if ($("#remember").checked) store.set("uneri.pw", pw);
+      boot(data);
+    }catch(err){ $("#pwErr").textContent = "パスワードが違います。"; }
+  });
+}
+(async () => {
+  try{
+    const r = await fetch("data.enc", {cache:"no-cache"});
+    if (r.ok){
+      const env = await r.json(), saved = store.get("uneri.pw", null);
+      if (saved){ try{ boot(await decrypt(env, saved)); return; }catch(e){ store.set("uneri.pw", null); } }
+      showLock(env); return;
+    }
+  }catch(e){}
+  try{
+    const r = await fetch("data.json", {cache:"no-cache"});
+    if (!r.ok) throw new Error(r.status);
+    boot(await r.json());
+  }catch(e){
+    $("#asof").textContent = "データがまだありません";
+    $("#body").innerHTML = `<p class="note">データがまだ作られていません。GitHub Actions の初回実行が終わると表示されます。</p>`;
+  }
+})();
+})();
+</script>
+</body>
+</html>
