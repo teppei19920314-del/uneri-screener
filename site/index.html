@@ -189,6 +189,43 @@ ul.checks .na{color:var(--ink-3)}
 .dspan .chipbtn[disabled]{opacity:.4;cursor:default}
 .tagline{display:flex;flex-wrap:wrap;gap:5px}
 
+/* ロット管理 */
+.stack{grid-template-columns:minmax(0,1fr)}
+.sec{min-width:0}
+.lotlist{display:grid;gap:10px;grid-template-columns:minmax(0,1fr)}
+.pnav button,.pnav a{white-space:nowrap;font-size:13px;padding-inline:2px}
+.lotrow{border:1px solid var(--rule);border-radius:10px;padding:10px;display:grid;gap:8px;min-width:0}
+.lothead{display:flex;flex-wrap:wrap;align-items:center;gap:6px 8px;min-width:0}
+.lotcode{width:4.6em;padding:6px;border:1px solid var(--rule);border-radius:6px;background:var(--sheet);font-size:16px;text-align:center}
+.lotname{flex:1 1 8em;min-width:0;border:none;background:none;padding:0;text-align:left;font-weight:700;font-size:15px;color:var(--ai);cursor:pointer}
+.lotnamein{flex:1 1 8em;min-width:0;padding:6px;border:1px solid var(--rule);border-radius:6px;background:var(--sheet);font-size:16px}
+.lotprice{font-size:12.5px;color:var(--ink-2);white-space:nowrap}
+.lotfields{display:grid;grid-template-columns:minmax(0,1.3fr) minmax(0,1fr) auto;gap:8px;align-items:end}
+.lotfields label{display:grid;gap:2px;font-size:11.5px;color:var(--ink-3);min-width:0}
+.lotin{color:var(--ink);width:100%;padding:7px 8px;border:1px solid var(--rule);border-radius:6px;background:var(--sheet);font-size:16px;text-align:right;font-variant-numeric:tabular-nums}
+.lotdone{justify-items:center}
+.lotdone input{width:22px;height:22px;margin:6px 0;accent-color:var(--ai)}
+.lotfoot{display:flex;flex-wrap:wrap;justify-content:space-between;gap:4px 10px;font-size:12.5px;color:var(--ink-2)}
+.lotfoot a{color:var(--ai);font-weight:700;text-decoration:none;margin-right:8px}
+.lotdel{border:none;background:none;color:var(--ai);font-size:12.5px;font-weight:700;padding:2px 0;cursor:pointer}
+.lotadd{display:flex;align-items:center;gap:8px;font-size:13.5px;font-weight:700}
+.lotbudget{width:100%;padding:9px 12px;border:1px solid var(--rule);border-radius:8px;background:var(--sheet);font-size:20px;text-align:center;font-variant-numeric:tabular-nums}
+table.lottotal{table-layout:fixed}
+table.lottotal th,table.lottotal td{text-align:center}
+.lotneg{color:var(--ai);font-weight:700}
+.lotmeter{display:flex;gap:2px;height:10px;margin-top:10px;background:var(--rule-2);border-radius:5px;overflow:hidden}
+.lotmeter i{display:block;background:var(--ai)}.lotmeter .b{opacity:.4}
+.lotcard{display:grid;gap:5px;width:100%;text-align:left;border:1px solid var(--rule);border-radius:10px;padding:10px;background:var(--sheet);cursor:pointer}
+.lotsum{margin:0;font-size:14px}
+.lotbtns{display:flex;flex-wrap:wrap;gap:8px}
+.lotfile{display:inline-block;color:var(--ink);font-weight:700}
+.lotfile input{display:none}
+.lotbadge{display:inline-block;font-size:11px;font-weight:700;padding:0 7px;border-radius:999px;margin-left:6px;vertical-align:2px}
+.lotbadge.held{background:var(--ai);color:var(--sheet)}
+.lotbadge.plan{background:var(--warn-bg);color:var(--warn)}
+#lotToast{position:fixed;left:50%;bottom:calc(18px + env(safe-area-inset-bottom,0px));transform:translateX(-50%);background:var(--ink);color:var(--sheet);padding:9px 14px;border-radius:8px;font-size:13.5px;z-index:60;width:max-content;max-width:calc(100vw - 32px)}
+.lock form input[type=email]{width:100%;padding:10px 12px;border:1px solid var(--rule);border-radius:8px;background:var(--paper);font-size:16px}
+
 /* lock screen */
 .lock{min-height:70vh;display:grid;place-items:center}
 .lock form{width:min(340px,100%);display:grid;gap:12px;background:var(--sheet);border:1px solid var(--rule);border-radius:14px;padding:22px}
@@ -212,6 +249,7 @@ ul.checks .na{color:var(--ink-3)}
     <button id="navMain" aria-current="page">うねり底</button>
     <button id="navPop">人気株</button>
     <button id="navSearch">検索</button>
+    <button id="navLots">ロット</button>
     <a href="sector.html">セクター</a>
   </nav>
 </header>
@@ -328,6 +366,7 @@ ul.checks .na{color:var(--ink-3)}
     <p class="note" style="margin:0"><span class="spanY">10</span>年の安値に近い順に並べています。「谷」は株価が25%以上戻した底のことで、回数が多いほど上げ下げを繰り返す「うねり」型です。</p>
   </div>
   <div class="list" id="list"></div>
+  <div id="lotsView" hidden></div>
   <p class="note" style="padding-bottom:24px">株価はYahoo!ファイナンス、財務はJ-Quants API、信用残と空売りはJPX公表資料から自動計算しています。表示は銘柄探しの補助で、売買の推奨ではありません。最終判断は決算資料などで必ず確認してください。</p>
 </main>
 
@@ -340,6 +379,8 @@ ul.checks .na{color:var(--ink-3)}
   <div class="wrap stack" id="dBody"></div>
 </div>
 
+<script src="firebase-config.js"></script>
+<script src="lots.js"></script>
 <script>
 (() => {
 "use strict";
@@ -598,7 +639,7 @@ function renderChartList(){
       <div class="head">
         <span class="rank">${i+1}</span>
         <div class="id">
-          <div><span class="code">${esc(s.c)}</span><span class="name">${esc(s.n)}</span></div>
+          <div><span class="code">${esc(s.c)}</span><span class="name">${esc(s.n)}</span>${window.Lots ? Lots.badge(s.c) : ""}</div>
           <div class="meta">${esc(s.m)} · ${esc(s.s)} · <span class="price">${yen(s.p)}</span></div>
         </div>
         <button class="star" data-star="${esc(s.c)}" aria-pressed="${watch.has(s.c)}" aria-label="ウォッチ">★</button>
@@ -651,7 +692,7 @@ function renderPop(){
       <div class="head">
         <span class="rank">${i+1}</span>
         <div class="id">
-          <div><span class="code">${esc(s.c)}</span><span class="name">${esc(s.n)}</span></div>
+          <div><span class="code">${esc(s.c)}</span><span class="name">${esc(s.n)}</span>${window.Lots ? Lots.badge(s.c) : ""}</div>
           <div class="meta">${s.sc ? `<span class="tier">${TIER_NAME[s.sc]}</span>` : ""}${esc(s.m)} · ${esc(s.s)} · <span class="price">${yen(s.p)}</span></div>
         </div>
         <button class="star" data-star="${esc(s.c)}" aria-pressed="${watch.has(s.c)}" aria-label="ウォッチ">★</button>
@@ -711,7 +752,7 @@ function searchCard(s){
   return `<div class="card" role="button" tabindex="0" data-c="${esc(s.c)}">
       <div class="head">
         <div class="id">
-          <div><span class="code">${esc(s.c)}</span><span class="name">${esc(s.n)}</span></div>
+          <div><span class="code">${esc(s.c)}</span><span class="name">${esc(s.n)}</span>${window.Lots ? Lots.badge(s.c) : ""}</div>
           <div class="meta">${esc(s.m)} · ${esc(s.s)} · <span class="price">${yen(s.p)}</span></div>
         </div>
         <button class="star" data-star="${esc(s.c)}" aria-pressed="${watch.has(s.c)}" aria-label="ウォッチ">★</button>
@@ -729,12 +770,15 @@ $("#searchInput").addEventListener("keydown", e => { if (e.key === "Enter" && !e
 
 function render(){
   if (!DATA) return;
-  const srch = view === "search";
+  const srch = view === "search", lots = view === "lots";
   $("#searchBar").hidden = !srch;
-  $("#spanRow").hidden = srch;
-  $("#summaryRow").hidden = false;
+  $("#spanRow").hidden = srch || lots;
+  $("#summaryRow").hidden = lots;
   $("#popBar").hidden = view !== "pop";
-  $("#tabsRow").hidden = view === "pop" || srch;
+  $("#tabsRow").hidden = view === "pop" || srch || lots;
+  $("#list").hidden = lots;
+  $("#lotsView").hidden = !lots;
+  if (lots){ $("#chartBar").hidden = true; if (window.Lots) Lots.render(); return; }
   if (srch){ $("#chartBar").hidden = true; return renderSearch(); }
   if (view === "pop"){ $("#chartBar").hidden = true; return renderPop(); }
   $("#chartBar").hidden = view !== "chart";
@@ -755,7 +799,7 @@ function render(){
     <div class="card" role="button" tabindex="0" data-c="${esc(s.c)}">
       <div class="head">
         <div class="id">
-          <div><span class="code">${esc(s.c)}</span><span class="name">${esc(s.n)}</span></div>
+          <div><span class="code">${esc(s.c)}</span><span class="name">${esc(s.n)}</span>${window.Lots ? Lots.badge(s.c) : ""}</div>
           <div class="meta">${esc(s.m)} · ${esc(s.s)} · <span class="price">${yen(s.p)}</span></div>
         </div>
         <button class="star" data-star="${esc(s.c)}" aria-pressed="${watch.has(s.c)}" aria-label="ウォッチ">★</button>
@@ -997,6 +1041,7 @@ function openDetail(code, push=true){
     </dl>
     ${spanTable(s0)}
   </section>
+  ${window.Lots ? Lots.detailHtml(s) : ""}
   ${distortionSection(s)}
   ${sectorSection(s)}
   ${earningsSection(s)}`;
@@ -1119,17 +1164,18 @@ const TABS = {chart:"#tabChart", all:"#tabAll", watch:"#tabWatch"};
 function setView(v){
   view = v; store.set("uneri.view", v);
   Object.entries(TABS).forEach(([k,id])=>$(id).setAttribute("aria-pressed", k===v));
-  const pop = v === "pop", srch = v === "search";
-  const title = pop ? "人気株の下落率" : srch ? "銘柄検索" : "うねり底スクリーナー";
+  const pop = v === "pop", srch = v === "search", lots = v === "lots";
+  const title = pop ? "人気株の下落率" : srch ? "銘柄検索" : lots ? "ロット管理" : "うねり底スクリーナー";
   $("#pageTitle").textContent = title;
   document.title = title;
-  [["#navMain", !pop && !srch], ["#navPop", pop], ["#navSearch", srch]].forEach(([id, on]) => {
+  [["#navMain", !pop && !srch && !lots], ["#navPop", pop], ["#navSearch", srch], ["#navLots", lots]].forEach(([id, on]) => {
     if (on) $(id).setAttribute("aria-current", "page"); else $(id).removeAttribute("aria-current"); });
   render();
 }
 $("#navMain").addEventListener("click", ()=>{ setView(store.get("uneri.lastMain", "chart")); window.scrollTo(0, 0); });
 $("#navPop").addEventListener("click", ()=>{ if (TABS[view]) store.set("uneri.lastMain", view); setView("pop"); window.scrollTo(0, 0); });
 $("#navSearch").addEventListener("click", ()=>{ if (TABS[view]) store.set("uneri.lastMain", view); setView("search"); window.scrollTo(0, 0); $("#searchInput").focus(); });
+$("#navLots").addEventListener("click", ()=>{ if (TABS[view]) store.set("uneri.lastMain", view); setView("lots"); window.scrollTo(0, 0); });
 $("#popBar").addEventListener("click", e=>{
   popLimit = 50;
   if (e.target.closest("#pSafe")){ cfg.psafe = !cfg.psafe; return changed(); }
@@ -1144,7 +1190,7 @@ $("#list").addEventListener("click", e=>{
   const y = window.scrollY; popLimit += 50; render(); window.scrollTo(0, y);
 });
 Object.entries(TABS).forEach(([k,id])=>$(id).addEventListener("click", ()=>setView(k)));
-{ const v = store.get("uneri.view", "chart"); if (TABS[v] || v === "pop" || v === "search") view = v; }
+{ const v = store.get("uneri.view", "chart"); if (TABS[v] || v === "pop" || v === "search" || v === "lots") view = v; }
 $("#spanSeg").addEventListener("click", e=>{
   const b = e.target.closest(".chipbtn"); if (!b) return;
   cfg.span = Number(b.dataset.v); changed();
@@ -1192,6 +1238,7 @@ function route(){
   if (h === "#main" && !TABS[view]) setView(store.get("uneri.lastMain", "chart"));
   if (h === "#popular" && view !== "pop"){ if (TABS[view]) store.set("uneri.lastMain", view); setView("pop"); }
   if (h === "#search" && view !== "search"){ if (TABS[view]) store.set("uneri.lastMain", view); setView("search"); }
+  if (h === "#lots" && view !== "lots"){ if (TABS[view]) store.set("uneri.lastMain", view); setView("lots"); }
   if (h === "#conditions") setPanel(true);
   if (h.startsWith("#c") && DATA) openDetail(h.slice(2), false); else closeDetail();
 }
@@ -1235,6 +1282,13 @@ function boot(data){
   $("#lockHost").hidden = true; $("#main").hidden = false;
   $("#asof").textContent = `${data.asof} 終値 · 更新 ${data.generated}`;
   $("#demoNote").hidden = !data.demo;
+  if (window.Lots) Lots.init({
+    data: () => DATA,
+    openDetail: code => openDetail(code),
+    currentCode: () => $("#sheet").hidden ? null : $("#dStar").dataset.star,
+    renderList: () => { if (view !== "lots") render(); },
+    distortion: s => LEVEL[distortion(s).level][0].replace("歪みの可能性 ", ""),
+  });
   syncControls(); setView(view); route();
 }
 async function load(){
