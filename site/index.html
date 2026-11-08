@@ -182,6 +182,13 @@ ul.checks .ok{color:var(--fall);font-weight:700}
 ul.checks .ng{color:var(--ai);font-weight:700}
 ul.checks .na{color:var(--ink-3)}
 
+/* 銘柄検索 */
+.searchbox{display:block;width:100%;padding:12px 14px;border:1px solid var(--rule);border-radius:10px;background:var(--sheet);font-size:16px;margin:14px 0 4px}
+.searchbox:focus{outline:2px solid var(--ai);outline-offset:1px}
+.dspan{display:flex;flex-wrap:wrap;gap:6px}
+.dspan .chipbtn[disabled]{opacity:.4;cursor:default}
+.tagline{display:flex;flex-wrap:wrap;gap:5px}
+
 /* lock screen */
 .lock{min-height:70vh;display:grid;place-items:center}
 .lock form{width:min(340px,100%);display:grid;gap:12px;background:var(--sheet);border:1px solid var(--rule);border-radius:14px;padding:22px}
@@ -204,6 +211,7 @@ ul.checks .na{color:var(--ink-3)}
   <nav class="wrap pnav" aria-label="ページ">
     <button id="navMain" aria-current="page">うねり底</button>
     <button id="navPop">人気株</button>
+    <button id="navSearch">検索</button>
     <a href="sector.html">セクター</a>
   </nav>
 </header>
@@ -283,7 +291,10 @@ ul.checks .na{color:var(--ink-3)}
 <div class="wrap" id="lockHost" hidden></div>
 <main class="wrap" id="main">
   <div id="demoNote" class="demo" hidden>これは架空の銘柄で作ったデモ表示です。実際のデータはJ-Quantsの設定後に表示されます。</div>
-  <div class="summary">
+  <div id="searchBar" hidden>
+    <input class="searchbox" id="searchInput" type="search" placeholder="銘柄名またはコード(例: トヨタ、7203)" aria-label="銘柄名または銘柄コード" autocomplete="off" autocapitalize="off" enterkeyhint="search">
+  </div>
+  <div class="summary" id="summaryRow">
     <span class="big num" id="hits">–</span><span class="sub" id="hitsSub">銘柄が条件に合っています</span>
   </div>
   <div class="tabs" role="group" aria-label="表示" id="tabsRow">
@@ -291,7 +302,7 @@ ul.checks .na{color:var(--ink-3)}
     <button class="chipbtn" id="tabAll" aria-pressed="false">総合スコア</button>
     <button class="chipbtn" id="tabWatch" aria-pressed="false">ウォッチ ★</button>
   </div>
-  <div class="crow spanrow"><span class="clab">期間</span><div class="seg period" id="spanSeg" role="group" aria-label="チャートの期間">
+  <div class="crow spanrow" id="spanRow"><span class="clab">期間</span><div class="seg period" id="spanSeg" role="group" aria-label="チャートの期間">
     <button class="chipbtn" data-v="10">10年</button><button class="chipbtn" data-v="5">5年</button><button class="chipbtn" data-v="2">2年</button><button class="chipbtn" data-v="1">1年</button></div></div>
   <div class="cbar" id="popBar" hidden>
     <div class="crow"><span class="clab">対象</span><div class="seg" data-k="ptier">
@@ -660,10 +671,71 @@ function renderPop(){
     (rows.length > popLimit ? `<button class="btn backbig" id="popMore">次の${Math.min(50, rows.length - popLimit)}銘柄を表示(残り ${rows.length - popLimit} 銘柄)</button>` : "");
 }
 
+/* ---------- 銘柄検索 ---------- */
+let searchQ = "";
+// 全角半角・大文字小文字・カタカナひらがな・空白・「株式会社」の違いを吸収する
+const normQ = q => String(q || "").normalize("NFKC").toLowerCase()
+  .replace(/[\u30a1-\u30f6]/g, c => String.fromCharCode(c.charCodeAt(0) - 0x60))
+  .replace(/株式会社|\(株\)|㈱|[\s・･.,、。]/g, "");
+function searchHits(q){
+  const n = normQ(q);
+  if (!n) return [];
+  const rank = s => {
+    const c = s.c.toLowerCase(), nm = normQ(s.n);
+    if (c === n) return 0;
+    if (c.startsWith(n)) return 1;
+    if (nm === n) return 2;
+    if (nm.startsWith(n)) return 3;
+    if (nm.includes(n)) return 4;
+    return 9;
+  };
+  return DATA.stocks.map(s => [rank(s), s]).filter(x => x[0] < 9)
+    .sort((a, b) => a[0] - b[0] || (b[1].mc ?? 0) - (a[1].mc ?? 0)).map(x => x[1]);
+}
+function renderSearch(){
+  const list = $("#list"), q = searchQ.trim();
+  $("#summaryRow").hidden = !q;
+  if (!q){
+    const w = DATA.stocks.filter(s => watch.has(s.c));
+    list.innerHTML = `<div class="empty">銘柄名かコードを入れると候補が出ます。タップすると、うねり・市場の歪み・セクター・決算・信用残・空売り・財務をすべて確認できます。</div>` +
+      (w.length ? `<p class="ckh">ウォッチ中の銘柄</p>` + w.map(searchCard).join("") : "");
+    return;
+  }
+  const rows = searchHits(q);
+  $("#hits").textContent = rows.length.toLocaleString("ja-JP");
+  $("#hitsSub").textContent = rows.length > 50 ? "銘柄が見つかりました(上位50件を表示)" : "銘柄が見つかりました";
+  list.innerHTML = rows.length ? rows.slice(0, 50).map(searchCard).join("") :
+    `<div class="empty">見つかりませんでした。別の書き方を試してください。対象は東証プライム・スタンダード・グロースで、上場から8週未満の銘柄や、無料プランの銘柄一覧に載る前(直近12週)の新規上場は出ません。</div>`;
+}
+function searchCard(s){
+  return `<div class="card" role="button" tabindex="0" data-c="${esc(s.c)}">
+      <div class="head">
+        <div class="id">
+          <div><span class="code">${esc(s.c)}</span><span class="name">${esc(s.n)}</span></div>
+          <div class="meta">${esc(s.m)} · ${esc(s.s)} · <span class="price">${yen(s.p)}</span></div>
+        </div>
+        <button class="star" data-star="${esc(s.c)}" aria-pressed="${watch.has(s.c)}" aria-label="ウォッチ">★</button>
+      </div>
+      ${sparkline(s)}
+    </div>`;
+}
+const openSingle = () => {
+  const n = normQ(searchQ), rows = searchHits(searchQ);
+  const exact = rows.find(s => s.c.toLowerCase() === n);
+  if (exact) openDetail(exact.c); else if (rows.length === 1) openDetail(rows[0].c);
+};
+$("#searchInput").addEventListener("input", e => { searchQ = e.target.value; if (DATA) renderSearch(); });
+$("#searchInput").addEventListener("keydown", e => { if (e.key === "Enter" && !e.isComposing){ e.preventDefault(); e.target.blur(); openSingle(); } });
+
 function render(){
   if (!DATA) return;
+  const srch = view === "search";
+  $("#searchBar").hidden = !srch;
+  $("#spanRow").hidden = srch;
+  $("#summaryRow").hidden = false;
   $("#popBar").hidden = view !== "pop";
-  $("#tabsRow").hidden = view === "pop";
+  $("#tabsRow").hidden = view === "pop" || srch;
+  if (srch){ $("#chartBar").hidden = true; return renderSearch(); }
   if (view === "pop"){ $("#chartBar").hidden = true; return renderPop(); }
   $("#chartBar").hidden = view !== "chart";
   if (view === "chart") return renderChartList();
@@ -820,6 +892,71 @@ function distortionSection(s){
   </section>`;
 }
 
+/* ---------- セクターの位置づけ ---------- */
+const PHASE_ORDER = ["回復期", "好況期", "後退期", "不況期"];
+const secKey = x => String(x || "").replace(/[、､,，・･ 　]/g, "");
+function sectorSection(s){
+  const rot = DATA.rot || {}, mk = rot.market, macro = rot.macro;
+  if (!mk) return "";
+  const sec = mk.sectors.find(x => secKey(x.name) === secKey(s.s));
+  if (!sec) return "";
+  const grp = mk.groups.find(g => g.name === sec.group), ph = mk.phases.find(p => p.name === sec.phase);
+  const base = macro ? macro.phase : mk.lead;
+  const nextPh = base ? PHASE_ORDER[(PHASE_ORDER.indexOf(base) + 1) % 4] : null;
+  const tags = [];
+  if (sec.phase && sec.phase === base) tags.push(["いまの局面", "g"]);
+  if (sec.phase && sec.phase === nextPh) tags.push(["次に来やすい局面", "g"]);
+  if (sec.phase && sec.phase === mk.lead) tags.push(["★相場の主役", "w"]);
+  if (sec.phase && sec.phase === mk.rising) tags.push(["直近1か月で勢いあり", "w"]);
+  const wk = s.wk && s.wk.c, wn = wk ? wk.length : 0;
+  const stockR = w => w === 4 ? (wn > 4 && wk[wn - 5] ? wk[wn - 1] / wk[wn - 5] - 1 : null)
+    : ((s.dist && s.dist.rel && s.dist.rel[String(w)]) || [null])[0];
+  const PER = [4, 13, 26, 52];
+  const row = (label, f, cls=true) => `<tr><td>${label}</td>${PER.map(w => { const v = f(w);
+    return `<td class="r num ${v == null || !cls ? "" : v >= 0 ? "up" : "dn"}">${spct(v, 1)}</td>`; }).join("")}</tr>`;
+  const mkt = mk.market || {};
+  const secRank = mk.sectors.slice().filter(x => x.x13 != null).sort((a, b) => b.x13 - a.x13).findIndex(x => x.name === sec.name) + 1;
+  const peers = DATA.stocks.filter(x => x.s === s.s && x.dist && x.dist.rel && x.dist.rel["13"] && x.dist.rel["13"][0] != null)
+    .sort((a, b) => b.dist.rel["13"][0] - a.dist.rel["13"][0]);
+  const peerRank = peers.findIndex(x => x.c === s.c) + 1;
+  return `<section class="sec">
+    <h3>セクターの位置づけ <span>${esc(sec.group || "未分類")}${sec.phase ? " · " + esc(sec.phase) : ""}</span></h3>
+    ${tags.length ? `<div class="tagline">${tags.map(([x, c]) => `<span class="chip ${c}">${esc(x)}</span>`).join("")}</div>` : ""}
+    <p class="note" style="margin:0">いまの局面は${macro ? `金利×景気(米国)で「${esc(macro.phase)}」` : "金利×景気のデータなし"}、日本株の資金の流れで「${esc(mk.lead || "–")}」です。${sec.phase ? `この銘柄は${esc(sec.phase)}のセクターです。` : ""}</p>
+    <div class="tblwrap"><table>
+      <thead><tr><th>騰落率</th><th class="r">1か月</th><th class="r">3か月</th><th class="r">半年</th><th class="r">1年</th></tr></thead>
+      <tbody>
+        ${row("この銘柄", stockR)}
+        ${row(esc(s.s), w => sec["r" + w])}
+        ${grp ? row(esc(grp.name), w => grp["r" + w]) : ""}
+        ${ph ? row(esc(ph.name), w => ph["r" + w]) : ""}
+        ${row("市場全体", w => mkt["r" + w])}
+      </tbody></table></div>
+    <dl class="kv">
+      <div><dt>業種の順位(3か月の市場比)</dt><dd>${secRank ? `${mk.sectors.length}業種中 ${secRank}位` : "–"}</dd></div>
+      <div><dt>業種内の順位(3か月)</dt><dd>${peerRank ? `${peers.length}銘柄中 ${peerRank}位` : "–"}</dd></div>
+      <div><dt>業種の時価総額(3か月の増減)</dt><dd>${oku(sec.mc)}(${okuS(sec.md13)})</dd></div>
+      ${grp ? `<div><dt>セクターの市場比(3か月)</dt><dd class="${grp.x13 >= 0 ? "up" : "dn"}">${spct(grp.x13, 1)}</dd></div>` : ""}
+    </dl>
+    <p class="note" style="margin:0">騰落率は業種・セクター・局面・市場とも銘柄の中央値です。局面の判定は目安です。</p>
+    <div class="links"><a href="sector.html">セクターの全体を見る</a></div>
+  </section>`;
+}
+// 10年・5年・2年・1年を見比べる表
+function spanTable(s0){
+  const rows = [[10, "10年", s0.x10 ? null : s0], [5, "5年", s0.y5], [2, "2年", s0.y2], [1, "1年", s0.y1]];
+  const phase = y => y.ph === "up" ? "反発" : y.ph === "down" ? "下落" : "–";
+  return `<p class="ckh">期間ごとの比較</p><div class="tblwrap"><table>
+    <thead><tr><th>期間</th><th class="r">位置</th><th class="r">局面</th><th class="r">谷</th><th class="r">値幅</th><th class="r">最寄りの谷</th><th class="r">傾き</th></tr></thead>
+    <tbody>${rows.map(([, l, y]) => y ? `<tr><td>${l}</td><td class="r num">${pct(y.pos, 0)}</td><td class="r">${phase(y)} ${spct(y.leg, 0)}</td><td class="r num">${y.sw}回</td><td class="r num">${spct(y.amp, 0)}</td><td class="r num">${spct(y.sup, 0)}</td><td class="r num">${spct(y.tr, 1)}</td></tr>`
+      : `<tr><td>${l}</td><td colspan="6" class="note">データなし</td></tr>`).join("")}</tbody></table></div>`;
+}
+function spanButtons(s0){
+  const has = {10: !s0.x10, 5: !!s0.y5, 2: !!s0.y2, 1: !!s0.y1};
+  return `<div class="dspan" role="group" aria-label="チャートの期間">${[10, 5, 2, 1].map(v =>
+    `<button class="chipbtn" data-dspan="${v}" aria-pressed="${cfg.span === v && has[v]}" ${has[v] ? "" : "disabled"}>${v}年</button>`).join("")}</div>`;
+}
+
 /* ---------- detail ---------- */
 function openDetail(code, push=true){
   const s0 = DATA && DATA.stocks.find(x=>x.c===code);
@@ -828,7 +965,7 @@ function openDetail(code, push=true){
   // 戻るボタン・スワイプで戻れるように履歴に残す(アプリ内表示などで使えない環境では何もしない)
   if (push && location.hash !== "#c"+code){ try{ history.pushState(null, "", "#c"+code); }catch(e){} }
   const sc = scoreOf(s);
-  const yl = s === s0 ? "10年" : Y();
+  const yl = s === s0 ? (s0.x10 ? "上場来" : "10年") : Y();
   $("#dTitle").innerHTML = `<span class="code">${esc(s.c)}</span>${esc(s.n)}`;
   $("#dStar").setAttribute("aria-pressed", watch.has(s.c));
   $("#dStar").dataset.star = s.c;
@@ -845,6 +982,7 @@ function openDetail(code, push=true){
   </section>
   <section class="sec">
     <h3>${yl}チャートのうねり <span>週足終値で25%以上の反転を1波と数えています</span></h3>
+    ${spanButtons(s0)}
     ${priceChart(s)}
     <dl class="kv">
       <div><dt>${yl}レンジの位置</dt><dd>${pct(s.pos,1)}</dd></div>
@@ -857,8 +995,10 @@ function openDetail(code, push=true){
       <div><dt>RSI(週14)</dt><dd>${fx(s.rsi,0)}</dd></div>
       <div><dt>13週線</dt><dd style="font-family:var(--f-body);font-size:14px">${s.ma?"上にある":"下にある"}</dd></div>
     </dl>
+    ${spanTable(s0)}
   </section>
   ${distortionSection(s)}
+  ${sectorSection(s)}
   ${earningsSection(s)}`;
 
   if (s.ml != null){
@@ -979,15 +1119,17 @@ const TABS = {chart:"#tabChart", all:"#tabAll", watch:"#tabWatch"};
 function setView(v){
   view = v; store.set("uneri.view", v);
   Object.entries(TABS).forEach(([k,id])=>$(id).setAttribute("aria-pressed", k===v));
-  const pop = v === "pop";
-  $("#pageTitle").textContent = pop ? "人気株の下落率" : "うねり底スクリーナー";
-  document.title = pop ? "人気株の下落率" : "うねり底スクリーナー";
-  $("#navMain").toggleAttribute("aria-current", !pop); if (!pop) $("#navMain").setAttribute("aria-current", "page");
-  $("#navPop").toggleAttribute("aria-current", pop); if (pop) $("#navPop").setAttribute("aria-current", "page");
+  const pop = v === "pop", srch = v === "search";
+  const title = pop ? "人気株の下落率" : srch ? "銘柄検索" : "うねり底スクリーナー";
+  $("#pageTitle").textContent = title;
+  document.title = title;
+  [["#navMain", !pop && !srch], ["#navPop", pop], ["#navSearch", srch]].forEach(([id, on]) => {
+    if (on) $(id).setAttribute("aria-current", "page"); else $(id).removeAttribute("aria-current"); });
   render();
 }
 $("#navMain").addEventListener("click", ()=>{ setView(store.get("uneri.lastMain", "chart")); window.scrollTo(0, 0); });
-$("#navPop").addEventListener("click", ()=>{ if (view !== "pop") store.set("uneri.lastMain", view); setView("pop"); window.scrollTo(0, 0); });
+$("#navPop").addEventListener("click", ()=>{ if (TABS[view]) store.set("uneri.lastMain", view); setView("pop"); window.scrollTo(0, 0); });
+$("#navSearch").addEventListener("click", ()=>{ if (TABS[view]) store.set("uneri.lastMain", view); setView("search"); window.scrollTo(0, 0); $("#searchInput").focus(); });
 $("#popBar").addEventListener("click", e=>{
   popLimit = 50;
   if (e.target.closest("#pSafe")){ cfg.psafe = !cfg.psafe; return changed(); }
@@ -1002,7 +1144,7 @@ $("#list").addEventListener("click", e=>{
   const y = window.scrollY; popLimit += 50; render(); window.scrollTo(0, y);
 });
 Object.entries(TABS).forEach(([k,id])=>$(id).addEventListener("click", ()=>setView(k)));
-{ const v = store.get("uneri.view", "chart"); if (TABS[v] || v === "pop") view = v; }
+{ const v = store.get("uneri.view", "chart"); if (TABS[v] || v === "pop" || v === "search") view = v; }
 $("#spanSeg").addEventListener("click", e=>{
   const b = e.target.closest(".chipbtn"); if (!b) return;
   cfg.span = Number(b.dataset.v); changed();
@@ -1035,13 +1177,21 @@ function goBack(){
   }
 }
 $("#dBack").addEventListener("click", goBack);
-$("#dBody").addEventListener("click", e=>{ if (e.target.closest("[data-close]")) goBack(); });
+$("#dBody").addEventListener("click", e=>{
+  if (e.target.closest("[data-close]")) return goBack();
+  const b = e.target.closest("[data-dspan]");
+  if (b && !b.disabled){
+    const y = $("#sheet").scrollTop, code = $("#dStar").dataset.star;
+    cfg.span = Number(b.dataset.dspan); changed(); openDetail(code, false); $("#sheet").scrollTop = y;
+  }
+});
 window.addEventListener("popstate", route);
 window.addEventListener("hashchange", route);
 function route(){
   const h = location.hash;
-  if (h === "#main" && view === "pop") setView(store.get("uneri.lastMain", "chart"));
+  if (h === "#main" && !TABS[view]) setView(store.get("uneri.lastMain", "chart"));
   if (h === "#popular" && view !== "pop"){ if (TABS[view]) store.set("uneri.lastMain", view); setView("pop"); }
+  if (h === "#search" && view !== "search"){ if (TABS[view]) store.set("uneri.lastMain", view); setView("search"); }
   if (h === "#conditions") setPanel(true);
   if (h.startsWith("#c") && DATA) openDetail(h.slice(2), false); else closeDetail();
 }
