@@ -1,0 +1,94 @@
+name: 毎日の更新
+
+on:
+  schedule:
+    - cron: "17 12 * * 1-5"   # 平日 21:17 JST
+  workflow_dispatch:
+
+permissions:
+  contents: write    # 50日ごとの空コミット用
+  pages: write
+  id-token: write
+
+concurrency:
+  group: daily-update
+  cancel-in-progress: false
+
+jobs:
+  update:
+    runs-on: ubuntu-latest
+    timeout-minutes: 180
+    environment:
+      name: github-pages
+      url: ${{ steps.deploy.outputs.page_url }}
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 1
+
+      # 定期実行は60日間コミットがないと止まるので、50日ごとに空コミットする
+      - name: 定期実行を止めないための空コミット(50日ごと)
+        if: github.event_name == 'schedule'
+        continue-on-error: true
+        run: |
+          last=$(git log -1 --format=%ct)
+          days=$(( ($(date +%s) - last) / 86400 ))
+          echo "最後のコミットから ${days} 日"
+          if [ "$days" -ge 50 ]; then
+            git config user.name  "github-actions[bot]"
+            git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+            git commit --allow-empty -m "定期実行を維持するための空コミット"
+            git push
+          fi
+
+      - name: パスワードの確認(未設定なら平文で公開しないよう止める)
+        env:
+          SITE_PASSWORD: ${{ secrets.SITE_PASSWORD }}
+        run: |
+          if [ -z "$SITE_PASSWORD" ]; then
+            echo "::error::Secrets に SITE_PASSWORD が設定されていません。平文で公開しないよう停止します。"
+            exit 1
+          fi
+
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+          cache: pip
+
+      - run: pip install -r requirements.txt
+
+      # 取得済みデータを引き継ぐ。消えていても自動で取り直す
+      - name: 前回のデータを復元
+        uses: actions/cache/restore@v4
+        with:
+          path: cache
+          key: uneri-data-${{ github.run_id }}
+          restore-keys: |
+            uneri-data-
+
+      - name: データ取得と計算
+        id: build
+        env:
+          JQUANTS_API_KEY: ${{ secrets.JQUANTS_API_KEY }}
+          SITE_PASSWORD: ${{ secrets.SITE_PASSWORD }}
+          DATA_SOURCE: ${{ vars.DATA_SOURCE || 'free' }}
+        run: python -m uneri.main
+
+      # 途中で失敗しても、取れた分は次回に引き継ぐ
+      - name: データを保存
+        if: always()
+        continue-on-error: true
+        uses: actions/cache/save@v4
+        with:
+          path: cache
+          key: uneri-data-${{ github.run_id }}
+
+      - uses: actions/configure-pages@v5
+
+      - uses: actions/upload-pages-artifact@v3
+        with:
+          path: public
+          include-hidden-files: true
+
+      - id: deploy
+        uses: actions/deploy-pages@v4
