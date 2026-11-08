@@ -7,7 +7,7 @@
   const CODE = { test: c => CODE_RE.test(c) || (!!api && !!api.data() && !!api.data().demo && /^[A-Z][0-9]{3}$/.test(c)) };  // 架空データのコードは英字始まり
   const UNIT = 100;
   const state = { status: "idle", email: "", lots: [], budget: 0, error: "", armed: null, focus: null, loaded: false };
-  let api = null, backend = null, pendingPlan = false, lastHeld = "";
+  let api = null, backend = null, pendingPlan = false, lastHeld = "", watchSynced = false;
 
   const $ = id => document.getElementById(id);
   const esc = s => String(s ?? "").replace(/[&<>"']/g, c => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;", "'": "&#39;" }[c]));
@@ -48,6 +48,7 @@
       stops = [
         fs.onSnapshot(fs.collection(db, base, "lots"), s => onLots(s.docs.map(d => ({ ...d.data(), id: d.id }))), onDataError),
         fs.onSnapshot(fs.doc(db, base, "settings", "plan"), d => onBudget(d.exists() ? d.data().budget || 0 : 0), onDataError),
+        fs.onSnapshot(fs.doc(db, base, "settings", "watch"), d => onWatch(d.exists() ? d.data().codes || [] : []), onDataError),
       ];
     });
     const ref = id => fs.doc(db, `users/${uid}/lots`, id);
@@ -61,13 +62,14 @@
       update: (id, p) => fs.updateDoc(ref(id), p),
       remove: id => fs.deleteDoc(ref(id)),
       setBudget: v => fs.setDoc(fs.doc(db, `users/${uid}/settings/plan`), { budget: v }),
+      setWatch: codes => fs.setDoc(fs.doc(db, `users/${uid}/settings/watch`), { codes }),
     };
   }
   function demoBackend() {
     const KEY = "uneri.demoLots";
-    let d = { lots: [], budget: 0 };
+    let d = { lots: [], budget: 0, watch: [] };
     try { d = JSON.parse(localStorage.getItem(KEY)) || d; } catch (e) { /* 空で始める */ }
-    const push = () => { try { localStorage.setItem(KEY, JSON.stringify(d)); } catch (e) { /* デモなので無視 */ } setTimeout(() => { onLots(d.lots.map(x => ({ ...x }))); onBudget(d.budget); }, 0); };
+    const push = () => { try { localStorage.setItem(KEY, JSON.stringify(d)); } catch (e) { /* デモなので無視 */ } setTimeout(() => { onLots(d.lots.map(x => ({ ...x }))); onBudget(d.budget); onWatch(d.watch || []); }, 0); };
     let n = Date.now();
     setTimeout(() => { onUser("デモ(この端末だけに保存)"); push(); }, 0);
     return {
@@ -78,6 +80,7 @@
       update: async (id, p) => { Object.assign(d.lots.find(l => l.id === id), p); push(); },
       remove: async id => { d.lots = d.lots.filter(l => l.id !== id); push(); },
       setBudget: async v => { d.budget = v; push(); },
+      setWatch: async codes => { d.watch = codes; push(); },
     };
   }
 
@@ -85,11 +88,22 @@
   function onUser(email) {
     state.email = email || ""; state.error = "";
     state.status = email === null ? "signedout" : "ready";
-    if (email === null) { state.lots = []; state.budget = 0; state.loaded = false; }
+    if (email === null) { state.lots = []; state.budget = 0; state.loaded = false; watchSynced = false; }
     refresh();
   }
   function onLots(lots) { state.lots = lots; state.loaded = true; refresh(); }
   function onBudget(v) { state.budget = v; refresh(); }
+  // ★(ウォッチ): ログイン直後だけ端末の★とまとめ、以後はFirebaseの内容に合わせる
+  function onWatch(remote) {
+    if (!watchSynced) {
+      watchSynced = true;
+      const merged = [...new Set([...api.getWatch(), ...remote])];
+      api.setWatch(merged);
+      if (merged.length !== new Set(remote).size) backend.setWatch(merged).catch(failed);
+      return;
+    }
+    api.setWatch(remote);
+  }
   function onDataError(e) {
     state.status = "error";
     state.error = e && e.code === "permission-denied"
@@ -420,6 +434,7 @@
     },
     render,
     detailHtml,
+    saveWatch(codes) { if (backend && watchSynced) backend.setWatch(codes).catch(failed); },
     badge(code) {
       if (state.status !== "ready") return "";
       const mine = state.lots.filter(l => l.code === code);
@@ -428,5 +443,6 @@
     },
     // テスト用
     _state: state,
+    _onWatch: codes => onWatch(codes),
   };
 })();

@@ -783,7 +783,8 @@ function render(){
   if (view === "pop"){ $("#chartBar").hidden = true; return renderPop(); }
   $("#chartBar").hidden = view !== "chart";
   if (view === "chart") return renderChartList();
-  const base = DATA.stocks.map(M).filter(Boolean);
+  // ウォッチは、選んだ期間のデータがない銘柄も消さずに出す
+  const base = view === "watch" ? DATA.stocks.filter(s=>watch.has(s.c)).map(s=>M(s) || s) : DATA.stocks.map(M).filter(Boolean);
   base.forEach(s=>s._sc = scoreOf(s));
   let rows = view === "watch" ? base.filter(s=>watch.has(s.c)) : base.filter(passes);
   rows.sort(SORTS[cfg.sort] || SORTS.score);
@@ -1207,7 +1208,17 @@ function toggleStar(code){
   watch.has(code) ? watch.delete(code) : watch.add(code);
   store.set("uneri.watch", [...watch]);
   document.querySelectorAll(`[data-star="${CSS.escape(code)}"]`).forEach(b=>b.setAttribute("aria-pressed", watch.has(code)));
+  if (window.Lots) Lots.saveWatch([...watch]);
   if (view==="watch") render();
+}
+// Firebaseの★を画面に反映する(他の端末での変更も届く)
+function applyWatch(codes){
+  const same = codes.length === watch.size && codes.every(c => watch.has(c));
+  watch = new Set(codes);
+  store.set("uneri.watch", codes);
+  if (same) return;
+  document.querySelectorAll("[data-star]").forEach(b=>b.setAttribute("aria-pressed", watch.has(b.dataset.star)));
+  if (view==="watch" || (view==="search" && !searchQ.trim())) render();
 }
 $("#list").addEventListener("click", e=>{
   const st = e.target.closest("[data-star]"); if (st){ e.stopPropagation(); toggleStar(st.dataset.star); return; }
@@ -1288,6 +1299,8 @@ function boot(data){
     currentCode: () => $("#sheet").hidden ? null : $("#dStar").dataset.star,
     renderList: () => { if (view !== "lots") render(); },
     distortion: s => LEVEL[distortion(s).level][0].replace("歪みの可能性 ", ""),
+    getWatch: () => [...watch],
+    setWatch: applyWatch,
   });
   syncControls(); setView(view); route();
 }
