@@ -1,0 +1,10 @@
+__pycache__/
+*.pyc
+.venv/
+venv/
+cache/
+public/
+public-demo/
+.DS_Store
+.claude/
+work/

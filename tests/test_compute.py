@@ -355,6 +355,34 @@ class Cli(unittest.TestCase):
             self.assertTrue((out / "index.html").read_text(encoding="utf-8").lower().startswith("<!doctype html>"))
             self.assertTrue((out / "sector.html").read_text(encoding="utf-8").lower().startswith("<!doctype html>"))
 
+    def test_firebase_config_from_variable(self):
+        from uneri import main
+
+        pasted = """const firebaseConfig = {
+  apiKey: "AIza-test",
+  authDomain: "p.firebaseapp.com",
+  projectId: "p",
+  appId: '1:2:web:3',
+  evil: "<script>",
+};"""
+        self.assertEqual(main.parse_firebase_config(pasted),
+                         {"apiKey": "AIza-test", "authDomain": "p.firebaseapp.com", "projectId": "p", "appId": "1:2:web:3"})
+        self.assertEqual(main.parse_firebase_config('{"apiKey":"a","projectId":"p","appId":"x"}')["projectId"], "p")
+        self.assertIsNone(main.parse_firebase_config('{"apiKey":"a"}'))
+        self.assertIsNone(main.parse_firebase_config(""))
+        with tempfile.TemporaryDirectory() as d:
+            out = Path(d)
+            self.assertTrue(main.write_firebase_config(out, pasted))
+            js = (out / "firebase-config.js").read_text()
+            self.assertIn('"projectId": "p"', js)
+            self.assertNotIn("evil", js)
+            self.assertFalse(main.write_firebase_config(out, "なにか"))
+
+    def test_site_ships_without_personal_firebase(self):
+        js = (ROOT / "site" / "firebase-config.js").read_text(encoding="utf-8")
+        self.assertIn("window.UNERI_FIREBASE = null;", js)
+        self.assertNotIn("apiKey", js)
+
     def test_real_mode_never_writes_plain(self):
         from uneri import main
 

@@ -226,6 +226,16 @@ table.lottotal th,table.lottotal td{text-align:center}
 #lotToast{position:fixed;left:50%;bottom:calc(18px + env(safe-area-inset-bottom,0px));transform:translateX(-50%);background:var(--ink);color:var(--sheet);padding:9px 14px;border-radius:8px;font-size:13.5px;z-index:60;width:max-content;max-width:calc(100vw - 32px)}
 .lock form input[type=email]{width:100%;padding:10px 12px;border:1px solid var(--rule);border-radius:8px;background:var(--paper);font-size:16px}
 
+/* お知らせ */
+.bell{position:relative;padding:7px 10px;line-height:0}
+.bell svg{width:20px;height:20px}
+.bell i{position:absolute;top:4px;right:6px;width:9px;height:9px;border-radius:50%;background:var(--ai);border:2px solid var(--sheet)}
+.keybox{display:grid;gap:8px}
+.keybox textarea{width:100%;font-family:ui-monospace,Menlo,monospace;font-size:13px;padding:8px;border:1px solid var(--rule);border-radius:8px;background:var(--paper);color:var(--ink);word-break:break-all}
+.pushon{margin:0;font-weight:700;color:var(--fall)}
+.warnline{color:var(--warn)!important}
+.alertday{display:grid;gap:8px}
+
 /* lock screen */
 .lock{min-height:70vh;display:grid;place-items:center}
 .lock form{width:min(340px,100%);display:grid;gap:12px;background:var(--sheet);border:1px solid var(--rule);border-radius:14px;padding:22px}
@@ -243,6 +253,7 @@ table.lottotal th,table.lottotal td{text-align:center}
       <h1 id="pageTitle">うねり底スクリーナー</h1>
       <p id="asof">データを読み込んでいます</p>
     </div>
+    <button class="btn bell" id="bellBtn" type="button" aria-label="お知らせ"><svg viewBox="0 0 20 20" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M5 8a5 5 0 0110 0c0 4 1.5 5.5 1.5 5.5h-13S5 12 5 8z"/><path d="M8.5 16.5a1.7 1.7 0 003 0"/></svg><i id="bellDot" hidden></i></button>
     <button class="btn" id="toggleFilters" aria-expanded="false" aria-controls="panel">条件</button>
   </div>
   <nav class="wrap pnav" aria-label="ページ">
@@ -367,6 +378,7 @@ table.lottotal th,table.lottotal td{text-align:center}
   </div>
   <div class="list" id="list"></div>
   <div id="lotsView" hidden></div>
+  <div id="alertsView" hidden></div>
   <p class="note" style="padding-bottom:24px">株価はYahoo!ファイナンス、財務はJ-Quants API、信用残と空売りはJPX公表資料から自動計算しています。表示は銘柄探しの補助で、売買の推奨ではありません。最終判断は決算資料などで必ず確認してください。</p>
 </main>
 
@@ -380,7 +392,9 @@ table.lottotal th,table.lottotal td{text-align:center}
 </div>
 
 <script src="firebase-config.js"></script>
+<script src="push-config.js"></script>
 <script src="lots.js"></script>
+<script src="alerts.js"></script>
 <script>
 (() => {
 "use strict";
@@ -770,15 +784,16 @@ $("#searchInput").addEventListener("keydown", e => { if (e.key === "Enter" && !e
 
 function render(){
   if (!DATA) return;
-  const srch = view === "search", lots = view === "lots";
+  const srch = view === "search", lots = view === "lots", alerts = view === "alerts", own = lots || alerts;
   $("#searchBar").hidden = !srch;
-  $("#spanRow").hidden = srch || lots;
-  $("#summaryRow").hidden = lots;
+  $("#spanRow").hidden = srch || own;
+  $("#summaryRow").hidden = own;
   $("#popBar").hidden = view !== "pop";
-  $("#tabsRow").hidden = view === "pop" || srch || lots;
-  $("#list").hidden = lots;
+  $("#tabsRow").hidden = view === "pop" || srch || own;
+  $("#list").hidden = own;
   $("#lotsView").hidden = !lots;
-  if (lots){ $("#chartBar").hidden = true; if (window.Lots) Lots.render(); return; }
+  $("#alertsView").hidden = !alerts;
+  if (own){ $("#chartBar").hidden = true; if (lots && window.Lots) Lots.render(); if (alerts && window.Alerts) Alerts.render(); return; }
   if (srch){ $("#chartBar").hidden = true; return renderSearch(); }
   if (view === "pop"){ $("#chartBar").hidden = true; return renderPop(); }
   $("#chartBar").hidden = view !== "chart";
@@ -1165,11 +1180,11 @@ const TABS = {chart:"#tabChart", all:"#tabAll", watch:"#tabWatch"};
 function setView(v){
   view = v; store.set("uneri.view", v);
   Object.entries(TABS).forEach(([k,id])=>$(id).setAttribute("aria-pressed", k===v));
-  const pop = v === "pop", srch = v === "search", lots = v === "lots";
-  const title = pop ? "人気株の下落率" : srch ? "銘柄検索" : lots ? "ロット管理" : "うねり底スクリーナー";
+  const pop = v === "pop", srch = v === "search", lots = v === "lots", alerts = v === "alerts";
+  const title = pop ? "人気株の下落率" : srch ? "銘柄検索" : lots ? "ロット管理" : alerts ? "お知らせ" : "うねり底スクリーナー";
   $("#pageTitle").textContent = title;
   document.title = title;
-  [["#navMain", !pop && !srch && !lots], ["#navPop", pop], ["#navSearch", srch], ["#navLots", lots]].forEach(([id, on]) => {
+  [["#navMain", !pop && !srch && !lots && !alerts], ["#navPop", pop], ["#navSearch", srch], ["#navLots", lots]].forEach(([id, on]) => {
     if (on) $(id).setAttribute("aria-current", "page"); else $(id).removeAttribute("aria-current"); });
   render();
 }
@@ -1177,6 +1192,7 @@ $("#navMain").addEventListener("click", ()=>{ setView(store.get("uneri.lastMain"
 $("#navPop").addEventListener("click", ()=>{ if (TABS[view]) store.set("uneri.lastMain", view); setView("pop"); window.scrollTo(0, 0); });
 $("#navSearch").addEventListener("click", ()=>{ if (TABS[view]) store.set("uneri.lastMain", view); setView("search"); window.scrollTo(0, 0); $("#searchInput").focus(); });
 $("#navLots").addEventListener("click", ()=>{ if (TABS[view]) store.set("uneri.lastMain", view); setView("lots"); window.scrollTo(0, 0); });
+$("#bellBtn").addEventListener("click", ()=>{ if (TABS[view]) store.set("uneri.lastMain", view); setView("alerts"); window.scrollTo(0, 0); });
 $("#popBar").addEventListener("click", e=>{
   popLimit = 50;
   if (e.target.closest("#pSafe")){ cfg.psafe = !cfg.psafe; return changed(); }
@@ -1191,7 +1207,7 @@ $("#list").addEventListener("click", e=>{
   const y = window.scrollY; popLimit += 50; render(); window.scrollTo(0, y);
 });
 Object.entries(TABS).forEach(([k,id])=>$(id).addEventListener("click", ()=>setView(k)));
-{ const v = store.get("uneri.view", "chart"); if (TABS[v] || v === "pop" || v === "search" || v === "lots") view = v; }
+{ const v = store.get("uneri.view", "chart"); if (TABS[v] || v === "pop" || v === "search" || v === "lots" || v === "alerts") view = v; }
 $("#spanSeg").addEventListener("click", e=>{
   const b = e.target.closest(".chipbtn"); if (!b) return;
   cfg.span = Number(b.dataset.v); changed();
@@ -1250,6 +1266,7 @@ function route(){
   if (h === "#popular" && view !== "pop"){ if (TABS[view]) store.set("uneri.lastMain", view); setView("pop"); }
   if (h === "#search" && view !== "search"){ if (TABS[view]) store.set("uneri.lastMain", view); setView("search"); }
   if (h === "#lots" && view !== "lots"){ if (TABS[view]) store.set("uneri.lastMain", view); setView("lots"); }
+  if (h === "#alerts" && view !== "alerts"){ if (TABS[view]) store.set("uneri.lastMain", view); closeDetail(); setView("alerts"); }
   if (h === "#conditions") setPanel(true);
   if (h.startsWith("#c") && DATA) openDetail(h.slice(2), false); else closeDetail();
 }
@@ -1302,6 +1319,7 @@ function boot(data){
     getWatch: () => [...watch],
     setWatch: applyWatch,
   });
+  if (window.Alerts) Alerts.init({ data: () => DATA, openDetail: code => openDetail(code) });
   syncControls(); setView(view); route();
 }
 async function load(){

@@ -72,6 +72,10 @@ jobs:
           JQUANTS_API_KEY: ${{ secrets.JQUANTS_API_KEY }}
           SITE_PASSWORD: ${{ secrets.SITE_PASSWORD }}
           DATA_SOURCE: ${{ vars.DATA_SOURCE || 'free' }}
+          FIREBASE_CONFIG: ${{ vars.FIREBASE_CONFIG }}
+          VAPID_PRIVATE_KEY: ${{ secrets.VAPID_PRIVATE_KEY }}
+          NOTIFY_EMAIL: ${{ secrets.NOTIFY_EMAIL }}
+          NOTIFY_PASSWORD: ${{ secrets.NOTIFY_PASSWORD }}
         run: python -m uneri.main
 
       # 途中で失敗しても、取れた分は次回に引き継ぐ
@@ -92,3 +96,13 @@ jobs:
 
       - id: deploy
         uses: actions/deploy-pages@v4
+
+      # 公開が終わってから、★銘柄と購入予定を判定して通知する(失敗しても更新は成功扱い)
+      - name: プッシュ通知
+        continue-on-error: true
+        env:
+          FIREBASE_CONFIG: ${{ vars.FIREBASE_CONFIG }}
+          VAPID_PRIVATE_KEY: ${{ secrets.VAPID_PRIVATE_KEY }}
+          NOTIFY_EMAIL: ${{ secrets.NOTIFY_EMAIL }}
+          NOTIFY_PASSWORD: ${{ secrets.NOTIFY_PASSWORD }}
+        run: python -m uneri.notify

@@ -6,7 +6,7 @@
   const CODE_RE = /^[0-9][0-9A-Z]{3}$/;
   const CODE = { test: c => CODE_RE.test(c) || (!!api && !!api.data() && !!api.data().demo && /^[A-Z][0-9]{3}$/.test(c)) };  // 架空データのコードは英字始まり
   const UNIT = 100;
-  const state = { status: "idle", email: "", lots: [], budget: 0, error: "", armed: null, focus: null, loaded: false };
+  const state = { status: "idle", email: "", lots: [], budget: 0, error: "", armed: null, focus: null, loaded: false, alerts: [] };
   let api = null, backend = null, pendingPlan = false, lastHeld = "", watchSynced = false;
 
   const $ = id => document.getElementById(id);
@@ -49,6 +49,8 @@
         fs.onSnapshot(fs.collection(db, base, "lots"), s => onLots(s.docs.map(d => ({ ...d.data(), id: d.id }))), onDataError),
         fs.onSnapshot(fs.doc(db, base, "settings", "plan"), d => onBudget(d.exists() ? d.data().budget || 0 : 0), onDataError),
         fs.onSnapshot(fs.doc(db, base, "settings", "watch"), d => onWatch(d.exists() ? d.data().codes || [] : []), onDataError),
+        fs.onSnapshot(fs.query(fs.collection(db, base, "alerts"), fs.orderBy("date", "desc"), fs.limit(30)),
+          s => onAlerts(s.docs.map(d => d.data())), () => onAlerts([])),
       ];
     });
     const ref = id => fs.doc(db, `users/${uid}/lots`, id);
@@ -63,13 +65,16 @@
       remove: id => fs.deleteDoc(ref(id)),
       setBudget: v => fs.setDoc(fs.doc(db, `users/${uid}/settings/plan`), { budget: v }),
       setWatch: codes => fs.setDoc(fs.doc(db, `users/${uid}/settings/watch`), { codes }),
+      savePush: (id, data) => fs.setDoc(fs.doc(db, `users/${uid}/push`, id), data),
+      removePush: id => fs.deleteDoc(fs.doc(db, `users/${uid}/push`, id)),
     };
   }
   function demoBackend() {
     const KEY = "uneri.demoLots";
     let d = { lots: [], budget: 0, watch: [] };
     try { d = JSON.parse(localStorage.getItem(KEY)) || d; } catch (e) { /* 空で始める */ }
-    const push = () => { try { localStorage.setItem(KEY, JSON.stringify(d)); } catch (e) { /* デモなので無視 */ } setTimeout(() => { onLots(d.lots.map(x => ({ ...x }))); onBudget(d.budget); onWatch(d.watch || []); }, 0); };
+    const push = () => { try { localStorage.setItem(KEY, JSON.stringify(d)); } catch (e) { /* デモなので無視 */ } setTimeout(() => { onLots(d.lots.map(x => ({ ...x }))); onBudget(d.budget); onWatch(d.watch || []); onAlerts(store.alerts()); }, 0); };
+    const store = { alerts: () => { try { return JSON.parse(localStorage.getItem("uneri.demoAlerts")) || []; } catch (e) { return []; } } };
     let n = Date.now();
     setTimeout(() => { onUser("デモ(この端末だけに保存)"); push(); }, 0);
     return {
@@ -81,6 +86,8 @@
       remove: async id => { d.lots = d.lots.filter(l => l.id !== id); push(); },
       setBudget: async v => { d.budget = v; push(); },
       setWatch: async codes => { d.watch = codes; push(); },
+      savePush: async (id, data) => { d.push = { ...(d.push || {}), [id]: data }; push(); },
+      removePush: async id => { if (d.push) delete d.push[id]; push(); },
     };
   }
 
@@ -88,11 +95,12 @@
   function onUser(email) {
     state.email = email || ""; state.error = "";
     state.status = email === null ? "signedout" : "ready";
-    if (email === null) { state.lots = []; state.budget = 0; state.loaded = false; watchSynced = false; }
+    if (email === null) { state.lots = []; state.budget = 0; state.loaded = false; watchSynced = false; state.alerts = []; }
     refresh();
   }
   function onLots(lots) { state.lots = lots; state.loaded = true; refresh(); }
   function onBudget(v) { state.budget = v; refresh(); }
+  function onAlerts(list) { state.alerts = list.slice().sort((a, b) => String(b.date).localeCompare(String(a.date))); if (window.Alerts) Alerts.changed(); }
   // ★(ウォッチ): ログイン直後だけ端末の★とまとめ、以後はFirebaseの内容に合わせる
   function onWatch(remote) {
     if (!watchSynced) {
@@ -434,6 +442,11 @@
     },
     render,
     detailHtml,
+    isReady: () => state.status === "ready",
+    alerts: () => state.alerts,
+    savePush: (id, data) => backend.savePush(id, data),
+    removePush: id => backend.removePush(id),
+    toast,
     saveWatch(codes) { if (backend && watchSynced) backend.setWatch(codes).catch(failed); },
     badge(code) {
       if (state.status !== "ready") return "";

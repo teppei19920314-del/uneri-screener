@@ -11,6 +11,7 @@ from __future__ import annotations
 import argparse
 import json
 import os
+import re
 import shutil
 import sys
 from pathlib import Path
@@ -99,11 +100,63 @@ def _safe(status: dict, name: str, fn):
         return None
 
 
+FIREBASE_KEYS = ("apiKey", "authDomain", "projectId", "storageBucket", "messagingSenderId", "appId", "measurementId")
+
+
+def parse_firebase_config(text: str | None) -> dict | None:
+    """GitHubの変数 FIREBASE_CONFIG を読む。
+
+    Firebaseの画面からコピーしたままの形(`const firebaseConfig = { apiKey: "…", … };`)でも、
+    JSONでも受け付ける。知っている項目だけを取り出し、足りなければ None。
+    """
+    if not text or "{" not in text:
+        return None
+    body = text[text.index("{"):text.rindex("}") + 1] if "}" in text else ""
+    found = dict(re.findall(r'["\']?(\w+)["\']?\s*:\s*["\']([^"\'\n]*)["\']', body))
+    cfg = {k: found[k].strip() for k in FIREBASE_KEYS if found.get(k, "").strip()}
+    return cfg if all(k in cfg for k in ("apiKey", "projectId", "appId")) else None
+
+
+def write_firebase_config(out: Path, text: str | None) -> bool:
+    cfg = parse_firebase_config(text)
+    if text and not cfg:
+        log("FIREBASE_CONFIG を読めないため、ロット管理は未設定のまま公開します(apiKey・projectId・appId が必要です)")
+    if not cfg:
+        return False
+    (out / "firebase-config.js").write_text(
+        "// 公開時に GitHub の変数 FIREBASE_CONFIG から作成\nwindow.UNERI_FIREBASE = " + json.dumps(cfg) + ";\n",
+        encoding="utf-8")
+    log(f"ロット管理: Firebase プロジェクト {cfg['projectId']}")
+    return True
+
+
+def write_push_config(out: Path, env=None) -> bool:
+    """通知の公開鍵と、送る側の設定がそろっているかを画面に渡す(秘密の値は書かない)。"""
+    env = os.environ if env is None else env
+    key = (env.get("VAPID_PRIVATE_KEY") or "").strip()
+    if not key:
+        return False
+    from .notify import public_key
+
+    try:
+        pub = public_key(key)
+    except Exception:
+        log("VAPID_PRIVATE_KEY の形式が違うため、通知は未設定のまま公開します")
+        return False
+    ready = bool(env.get("NOTIFY_EMAIL") and env.get("NOTIFY_PASSWORD"))
+    (out / "push-config.js").write_text(
+        "// 公開時に作成(通知の公開鍵)\nwindow.UNERI_PUSH = " + json.dumps({"publicKey": pub, "ready": ready}) + ";\n",
+        encoding="utf-8")
+    return True
+
+
 def publish(data: dict, out: Path, password: str | None) -> None:
     if out.exists():
         shutil.rmtree(out)
     shutil.copytree(SITE, out)
     (out / ".nojekyll").write_text("")
+    write_firebase_config(out, os.environ.get("FIREBASE_CONFIG"))
+    write_push_config(out)
     if password:
         size = write_encrypted(out, data, password)
         log(f"公開用データ: {len(data['stocks'])}銘柄、暗号文 {size / 1e6:.2f}MB")
@@ -113,6 +166,10 @@ def publish(data: dict, out: Path, password: str | None) -> None:
             raise SystemExit("パスワードなしで本番データは公開しません")
         (out / "data.json").write_text(json.dumps(data, ensure_ascii=False, separators=(",", ":"), allow_nan=False),
                                        encoding="utf-8")
+    # 通知の判定用(公開しない作業フォルダに置く)
+    from .notify import save_input
+
+    save_input(data)
 
 
 def summary(data: dict, status: dict) -> None:
