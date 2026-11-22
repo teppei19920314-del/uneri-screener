@@ -155,6 +155,10 @@ dl{margin:0}
 .wtgt input{width:8em;padding:5px 8px;border:1px solid var(--rule);border-radius:8px;background:var(--paper);color:var(--ink);font-family:var(--f-num);font-size:16px;text-align:right}
 .wtgt input:focus{outline:2px solid var(--ai);outline-offset:1px}
 .wtgt .hit{color:var(--ai);font-weight:700}
+.wtgt .est{flex-basis:100%;color:var(--ink-3);font-size:12.5px}
+.bot-main{display:flex;align-items:baseline;gap:10px;flex-wrap:wrap;margin-bottom:10px}
+.bot-main b{font-family:var(--f-num);font-size:28px;color:var(--ai);line-height:1}
+.bot-warn{background:var(--warn-bg);border-radius:8px;padding:8px 10px;font-size:13px;margin:8px 0}
 .parts{display:grid;gap:6px}
 .part{display:grid;grid-template-columns:5.5em 1fr 3.2em;gap:8px;align-items:center;font-size:12.5px}
 .part .track{height:6px;border-radius:3px;background:var(--rule-2);overflow:hidden}
@@ -863,6 +867,72 @@ function render(){
       ${view==="watch" ? targetRow(s) : ""}
     </div>`).join("");
 }
+/* ---------- 底値の目安 ----------
+   10年(上場来)のうねりから機械的に出す。
+   下落中: 直近の山 ×(1 + 過去の下げ幅)。幅は下げ幅の25〜75%点。過去の谷が重なればそれも示す。
+   反発中: 直近の谷を「いまの底」として示す。予測が当たる保証はない。 */
+const qt = (a, f) => { const x = (a.length - 1) * f, i = Math.floor(x); return i + 1 < a.length ? a[i] + (a[i + 1] - a[i]) * (x - i) : a[i]; };
+const rprice = v => v >= 100 ? Math.round(v) : Math.round(v * 10) / 10;
+function bottomEst(s0){
+  const piv = (s0.ch && s0.ch.piv) || [], p = s0.p;
+  if (!p || !piv.length) return null;
+  const drops = [];
+  for (let i = 1; i < piv.length; i++) if (piv[i-1][1] === "H" && piv[i][1] === "L" && piv[i-1][2] > 0) drops.push(piv[i][2] / piv[i-1][2] - 1);
+  drops.sort((a, b) => a - b);   // 深い順
+  const lows = piv.filter(v => v[1] === "L").map(v => v[2]);
+  const lastL = [...piv].reverse().find(v => v[1] === "L"), lastH = [...piv].reverse().find(v => v[1] === "H");
+  if (s0.ph === "down" && lastH && drops.length){
+    const peak = lastH[2], med = qt(drops, .5);
+    const mid = rprice(peak * (1 + med)), lo = rprice(peak * (1 + qt(drops, .25))), hi = rprice(peak * (1 + qt(drops, .75)));
+    const near = lows.filter(v => v >= lo * 0.95 && v <= hi * 1.05).sort((a, b) => Math.abs(a - mid) - Math.abs(b - mid))[0] ?? null;
+    const state = p > hi ? "above" : p >= lo ? "in" : "below";
+    const under = lows.filter(v => v < p);   // 過去の谷のうち、現在値より下のもの
+    const nextLow = under.length ? Math.max(...under) : null;
+    return {kind: "down", peak, mid, lo, hi, med, n: drops.length, near, state, cur: p / peak - 1, deepest: drops[0], nextLow};
+  }
+  if (s0.ph === "up" && lastL) return {kind: "up", mid: lastL[2], cur: p / lastL[2] - 1, n: drops.length};
+  return null;
+}
+function bottomLine(s0){
+  const b = bottomEst(s0);
+  if (!b) return "";
+  if (b.kind === "down" && b.state === "below") return `過去の下げ幅を超えて下落中(山から ${spct(b.cur, 0)})` + (b.nextLow ? `・下にある過去の谷 ${yen(b.nextLow)}` : "・下に過去の谷なし");
+  return b.kind === "down" ? `底値の目安 ${yen(b.mid)}(${yen(b.lo)}〜${yen(b.hi)}・現在から ${spct(b.mid / s0.p - 1, 0)})`
+                           : `反発中・直近の底 ${yen(b.mid)}(現在は ${spct(b.cur, 0)})`;
+}
+function bottomSection(s0){
+  const b = bottomEst(s0), span = s0.x10 ? "上場来" : "10年";
+  const head = `<h3>底値の目安 <span>${span}のうねりから機械的に計算・予測が当たる保証はありません</span></h3>`;
+  if (!b) return `<section class="sec">${head}<p class="note">まだ25%以上の山と谷がそろっていないため、計算できません。</p></section>`;
+  const tv = b.kind === "down" && b.state === "below" ? b.nextLow : b.mid;
+  const btn = tv == null ? "" : `<button class="btn" type="button" data-settgt="${esc(s0.c)}" data-v="${tv}">${watch.has(s0.c) ? "この値を★の目標にする" : "★を付けて、この値を目標にする"}</button>`;
+  if (b.kind === "up") return `<section class="sec">${head}
+    <div class="bot-main"><b>${yen(b.mid)}</b><span class="note">直近の底(ここから ${spct(b.cur, 0)} 反発中)</span></div>
+    <p class="note">いまは谷から25%以上上げて「反発中」です。次の下げがあれば、下げ始めた山をもとに目安を出します。直近の底を割らないかが、反発が続くかの目安になります。</p>
+    ${btn}</section>`;
+  const st = {above: `現在値はまだ目安の範囲より上です(あと ${spct(b.hi / s0.p - 1, 0)} で範囲に入ります)。`,
+              in: `現在値は、過去の下げ幅から見た底値の範囲に入っています。`,
+              below: ``}[b.state];
+  if (b.state === "below") return `<section class="sec">${head}
+    <div class="bot-main"><b>–</b><span class="note">過去の下げ幅より深く下げているため、この方法では目安を出せません</span></div>
+    <div class="bot-warn">過去の下げは最大 ${spct(b.deepest, 0)} でしたが、今回は山(${yen(b.peak)})から ${spct(b.cur, 0)} 下げています。会社や業界に新しい問題がないか、「市場の歪み」と決算を確認してください。</div>
+    <dl class="kv">
+      <div><dt>下にある過去の谷</dt><dd>${b.nextLow == null ? `なし(${span}の最安値圏)` : yen(b.nextLow) + "(" + spct(b.nextLow / s0.p - 1, 0) + ")"}</dd></div>
+      <div><dt>過去の下げ幅(中央値)</dt><dd>${spct(b.med, 0)}(${b.n}回)</dd></div>
+    </dl>
+    ${b.nextLow != null ? btn.replace(/この値を|、この値を/, m => m.replace("この値", "その谷")) : ""}</section>`;
+  return `<section class="sec">${head}
+    <div class="bot-main"><b>${yen(b.mid)}</b><span class="note">範囲 ${yen(b.lo)}〜${yen(b.hi)} · 現在から ${spct(b.mid / s0.p - 1, 0)}</span></div>
+    ${b.state === "below" ? `<div class="bot-warn">過去の下げ幅の範囲より深く下げています(過去最大 ${spct(b.deepest, 0)}・今回 ${spct(b.cur, 0)})。会社や業界に新しい問題がないか、「市場の歪み」と決算を確認してください。</div>` : `<p class="note">${st}</p>`}
+    <dl class="kv">
+      <div><dt>下げ始めた山</dt><dd>${yen(b.peak)}</dd></div>
+      <div><dt>山からの下げ(今回)</dt><dd class="dn">${spct(b.cur, 0)}</dd></div>
+      <div><dt>過去の下げ幅(中央値)</dt><dd>${spct(b.med, 0)}(${b.n}回)</dd></div>
+      <div><dt>重なる過去の谷</dt><dd>${b.near == null ? "なし" : yen(b.near)}</dd></div>
+    </dl>
+    <p class="note">目安 = 山の価格 ×(1 + 過去の下げ幅の中央値)。範囲は過去の下げ幅の25〜75%点です。${b.n < 3 ? `過去の下げが${b.n}回しかないため、ぶれが大きい参考値です。` : ""}${b.near != null ? "過去の谷が範囲の近くにあり、下げ止まりやすい価格帯の可能性があります。" : ""}</p>
+    ${btn}</section>`;
+}
 /* ---------- ★の目標価格 ---------- */
 const numIn = v => { const p = String(v ?? "").normalize("NFKC").replace(/[^\d.]/g, ""); const n = Number(p); return p && Number.isFinite(n) && n > 0 ? n : null; };
 const fmtIn = v => v == null ? "" : Number(v).toLocaleString("ja-JP", {maximumFractionDigits:1});
@@ -875,6 +945,7 @@ function targetRow(s){
   return `<div class="wtgt" data-wtrow="${esc(s.c)}">
       <label>目標 <input data-wt="${esc(s.c)}" inputmode="decimal" enterkeyhint="done" autocomplete="off" placeholder="未設定" value="${fmtIn(t)}" aria-label="${esc(s.n)}の目標価格(円)"> 円</label>
       <span data-wtgap="${esc(s.c)}">${targetGap(s, t)}</span>
+      ${(() => { const s0 = DATA.stocks.find(x => x.c === s.c), l = s0 ? bottomLine(s0) : ""; return l ? `<span class="est">${l}</span>` : ""; })()}
     </div>`;
 }
 function setTarget(code, v){
@@ -1127,6 +1198,7 @@ function openDetail(code, push=true){
     </dl>
     ${spanTable(s0)}
   </section>
+  ${bottomSection(s0)}
   ${window.Lots ? Lots.detailHtml(s) : ""}
   ${distortionSection(s)}
   ${sectorSection(s)}
@@ -1343,6 +1415,15 @@ function goBack(){
 $("#dBack").addEventListener("click", goBack);
 $("#dBody").addEventListener("click", e=>{
   if (e.target.closest("[data-close]")) return goBack();
+  const tg = e.target.closest("[data-settgt]");
+  if (tg){
+    const code = tg.dataset.settgt;
+    if (!watch.has(code)) toggleStar(code);
+    setTarget(code, tg.dataset.v);
+    tg.textContent = `★の目標を ${yen(wtarget[code])} にしました`;
+    if (view === "watch") render();
+    return;
+  }
   const b = e.target.closest("[data-dspan]");
   if (b && !b.disabled){
     const y = $("#sheet").scrollTop, code = $("#dStar").dataset.star;
