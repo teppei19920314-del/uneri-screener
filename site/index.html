@@ -63,6 +63,7 @@ header.top .wrap{display:flex;align-items:center;gap:12px;padding-block:10px}
 .btn{border:1px solid var(--rule);background:var(--sheet);border-radius:999px;padding:7px 14px;font-size:13.5px;font-weight:700;cursor:pointer}
 .btn.primary{background:var(--ai);border-color:var(--ai);color:var(--sheet)}
 a.btn{text-decoration:none;color:var(--ink);white-space:nowrap}
+.btn.shikiho{display:block;width:fit-content;margin-top:12px;border-color:var(--ai);color:var(--ai)}
 .pnav{display:flex;gap:0;padding-block:0 0;border-top:1px solid var(--rule-2)}
 .pnav button,.pnav a{flex:1;text-align:center;border:none;background:none;padding:9px 4px 8px;font-size:14px;font-weight:700;color:var(--ink-3);text-decoration:none;cursor:pointer;border-bottom:3px solid transparent}
 .pnav [aria-current="page"]{color:var(--ai);border-bottom-color:var(--ai)}
@@ -1198,6 +1199,46 @@ function distortionSection(s){
   </section>`;
 }
 
+/* ---------- なぜ下がっているか ---------- */
+// 1年の下落を「市場全体の分」「業種の分」「会社の分」に分け、業績と需給から理由の候補を並べる
+function whySection(s){
+  const d = s.dist || {}, [st, sec, mk] = (d.rel || {})["52"] || [];
+  const links = `<div class="links" style="margin-top:4px">
+      <a href="https://kabutan.jp/stock/news?code=${encodeURIComponent(s.c)}" target="_blank" rel="noopener">株探のニュース</a>
+      <a href="https://shikiho.toyokeizai.net/stocks/${encodeURIComponent(s.c)}" target="_blank" rel="noopener">四季報で見る</a></div>`;
+  const head = `<h3>なぜ下がっている? <span>1年の値動きと決算から</span></h3>`;
+  if (st == null) return `<section class="sec">${head}<p class="note" style="margin:0">1年分のデータがないため判定できません。</p>${links}</section>`;
+  if (st > -0.05) return `<section class="sec">${head}<p style="margin:0">1年では大きく下げていません(1年 ${spct(st,0)})。</p>${links}</section>`;
+  const mkPart = mk ?? 0, secPart = sec != null ? sec - mkPart : 0, coPart = st - (sec ?? mkPart);
+  const env = [], biz = [], sd = [];
+  if (mk != null && mk <= -0.05) env.push([null, `市場全体が下げている(1年 ${spct(mk,0)})`]);
+  if (sec != null && sec <= -0.05) env.push([null, `同じ業種(${esc(s.s)})全体が下げている(1年 ${spct(sec,0)}${secPart < -0.03 ? `・市場より ${Math.round(-secPart * 100)}pt 弱い` : ""})`]);
+  if (coPart < -0.1) env.push([false, `${sec != null ? "業種" : "市場"}より ${Math.round(-coPart * 100)}pt 多く下げている(会社固有の材料がある可能性)`]);
+  if (d.oyl) biz.push([false, `直近の決算(${esc(d.bpt)})で営業赤字`]);
+  else if (d.oy != null && d.oy < -0.1) biz.push([false, `直近の決算(${esc(d.bpt)})で営業利益が前年同期比 ${spct(d.oy,0)}`]);
+  if (d.sy != null && d.sy < -0.05) biz.push([false, `売上が前年同期比 ${spct(d.sy,0)}`]);
+  if (d.fcr != null && d.fcr < -0.05) biz.push([false, `会社が業績予想を下方修正(期初予想から ${spct(d.fcr,0)})`]);
+  if (d.fcp != null && d.fcp < -0.1) biz.push([false, `今期は減益の予想(営業利益が前期の ${spct(d.fcp,0)})`]);
+  if (s.loss) biz.push([false, "今期は最終赤字の予想"]);
+  if (s.mlc != null && s.mlc < -0.1) sd.push([null, `信用買いの投げ売りが出ている(買い残 8週で ${spct(s.mlc,0)})`]);
+  if (s.mr != null && s.mr >= 5) sd.push([null, `信用買い残が多く、戻り売りが出やすい(信用倍率 ${fx(s.mr,1)}倍)`]);
+  if (s.stc != null && s.stc > 0.001) sd.push([null, `機関の空売りが増えている(4週で +${(s.stc * 100).toFixed(2)}pt)`]);
+  const parts = [["市場全体の下げ", mkPart], ["業種の不調", secPart], ["会社固有の要因", coPart]].filter(x => x[1] < -0.02).sort((a, b) => a[1] - b[1]);
+  const main = parts.length ? parts[0][0] : "はっきりした理由なし";
+  const tail = biz.length ? "。決算にも悪化が見られます" : coPart < -0.1 ? "。決算の数字は崩れていないので、ニュースや材料を確認してください" : "";
+  const bar = (n, v) => `<div class="part"><span>${n}</span><span class="track"><i style="width:${Math.min(100, Math.max(0, -v / -st * 100)).toFixed(0)}%"></i></span><span class="num">${spct(v,0)}</span></div>`;
+  return `<section class="sec">
+    ${head}
+    <p style="margin:0">1年で <b class="num">${spct(st,0)}</b>。主な理由は<b>${main}</b>${tail}。</p>
+    <div class="parts">${bar("市場", Math.min(0, mkPart))}${sec != null ? bar("業種", Math.min(0, secPart)) : ""}${bar("会社", Math.min(0, coPart))}</div>
+    ${env.length ? `<p class="ckh">値動き</p>${checks(env)}` : ""}
+    ${biz.length ? `<p class="ckh">決算</p>${checks(biz)}` : ""}
+    ${sd.length ? `<p class="ckh">需給</p>${checks(sd)}` : ""}
+    <p class="note" style="margin:0">棒は1年の下落の内訳です。「会社」は業種(業種がなければ市場)との差です。具体的なニュースや材料はこのアプリでは取れないので、下のリンクで確認してください。</p>
+    ${links}
+  </section>`;
+}
+
 /* ---------- セクターの位置づけ ---------- */
 const PHASE_ORDER = ["回復期", "好況期", "後退期", "不況期"];
 const secKey = x => String(x || "").replace(/[、､,，・･ 　]/g, "");
@@ -1284,8 +1325,10 @@ function openDetail(code, push=true){
       <span class="num" style="font-size:18px">${yen(s.p)}</span>
       <span class="note">${esc(DATA.asof)} 終値</span>
     </div>
+    <a class="btn shikiho" href="https://shikiho.toyokeizai.net/stocks/${encodeURIComponent(s.c)}" target="_blank" rel="noopener">四季報で見る ↗</a>
     <div class="parts">${sc.parts.map(([n,v,m])=>`<div class="part"><span>${n}</span><span class="track"><i style="width:${(100*v/m).toFixed(0)}%"></i></span><span class="num">${v.toFixed(0)}/${m}</span></div>`).join("")}</div>
   </section>
+  ${whySection(s0)}
   <section class="sec">
     <h3>${yl}チャートのうねり <span>週足終値で25%以上の反転を1波と数えています</span></h3>
     ${spanButtons(s0)}
@@ -1385,6 +1428,7 @@ function openDetail(code, push=true){
   <section class="sec">
     <h3>くわしく調べる</h3>
     <div class="links">
+      <a href="https://shikiho.toyokeizai.net/stocks/${encodeURIComponent(s.c)}" target="_blank" rel="noopener">会社四季報オンライン</a>
       <a href="https://kabutan.jp/stock/?code=${encodeURIComponent(s.c)}" target="_blank" rel="noopener">株探</a>
       <a href="https://finance.yahoo.co.jp/quote/${encodeURIComponent(s.c)}.T" target="_blank" rel="noopener">Yahoo!ファイナンス</a>
       <a href="https://irbank.net/${encodeURIComponent(s.c)}" target="_blank" rel="noopener">IR BANK(10年業績)</a>
