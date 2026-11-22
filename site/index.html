@@ -63,6 +63,8 @@ header.top .wrap{display:flex;align-items:center;gap:12px;padding-block:10px}
 .btn{border:1px solid var(--rule);background:var(--sheet);border-radius:999px;padding:7px 14px;font-size:13.5px;font-weight:700;cursor:pointer}
 .btn.primary{background:var(--ai);border-color:var(--ai);color:var(--sheet)}
 a.btn{text-decoration:none;color:var(--ink);white-space:nowrap}
+.about{margin:0;font-size:14px;line-height:1.7}
+.about .src{font-size:12px;color:var(--ink-3);margin-left:4px}
 .btn.shikiho{display:block;width:fit-content;margin-top:12px;border-color:var(--ai);color:var(--ai)}
 .pnav{display:flex;gap:0;padding-block:0 0;border-top:1px solid var(--rule-2)}
 .pnav button,.pnav a{flex:1;text-align:center;border:none;background:none;padding:9px 4px 8px;font-size:14px;font-weight:700;color:var(--ink-3);text-decoration:none;cursor:pointer;border-bottom:3px solid transparent}
@@ -1199,6 +1201,47 @@ function distortionSection(s){
   </section>`;
 }
 
+/* ---------- どんな会社か(Wikipediaの冒頭を表示) ---------- */
+const ABOUT_KEY = "uneri.about";
+let aboutMem = store.get(ABOUT_KEY, {});
+const normName = v => String(v || "").normalize("NFKC").replace(/株式会社|\(株\)|㈱|\s|・|･/g, "").replace(/\s*\(.*?\)$/, "").toLowerCase();
+async function wikiQuery(params){
+  const u = "https://ja.wikipedia.org/w/api.php?" + new URLSearchParams(Object.assign({
+    action: "query", prop: "extracts", exintro: "1", explaintext: "1", exsentences: "3", exlimit: "5",
+    redirects: "1", format: "json", origin: "*"}, params));
+  const r = await fetch(u);
+  if (!r.ok) throw new Error(r.status);
+  return Object.values((await r.json()).query?.pages || {}).filter(p => p.extract);
+}
+const isCompany = p => /会社|企業|メーカー|持株|銀行|グループ/.test(p.extract.slice(0, 200));
+async function findAbout(s){
+  const name = String(s.n).normalize("NFKC"), key = normName(name);
+  // 1. 会社名と同じ題名の記事  2. 会社名と証券コードで検索して、題名が会社名と一致する記事
+  let pages = await wikiQuery({titles: `${name}|${name} (企業)`});
+  let hit = pages.find(p => isCompany(p) && normName(p.title.replace(/\s*\(企業\)$/, "")) === key);
+  if (!hit){
+    pages = (await wikiQuery({generator: "search", gsrsearch: `${name} ${s.c}`, gsrlimit: "5"})).sort((a, b) => a.index - b.index);
+    hit = pages.find(p => isCompany(p) && normName(p.title) === key);
+  }
+  return hit ? {t: hit.title, x: hit.extract.trim()} : {t: null};
+}
+async function loadAbout(s){
+  const box = () => $("#dStar").dataset.star === s.c && $("#aboutTxt");
+  let a = aboutMem[s.c];
+  if (!a || Date.now() - (a.at || 0) > 30 * 864e5){
+    try{ a = Object.assign(await findAbout(s), {at: Date.now()}); }
+    catch(e){ if (box()) box().textContent = "会社の説明を読み込めませんでした。通信を確認するか、下の四季報で確認してください。"; return; }
+    aboutMem = Object.assign({}, store.get(ABOUT_KEY, {}), {[s.c]: a});
+    const keys = Object.keys(aboutMem);
+    if (keys.length > 300) keys.sort((x, y) => aboutMem[x].at - aboutMem[y].at).slice(0, keys.length - 300).forEach(k => delete aboutMem[k]);
+    store.set(ABOUT_KEY, aboutMem);
+  }
+  const el = box(); if (!el) return;
+  el.innerHTML = a.t
+    ? `${esc(a.x)} <a href="https://ja.wikipedia.org/wiki/${encodeURIComponent(a.t)}" target="_blank" rel="noopener" class="src">Wikipedia</a>`
+    : `この会社の説明は見つかりませんでした。四季報の「特色」で確認できます。`;
+}
+
 /* ---------- なぜ下がっているか ---------- */
 // 1年の下落を「市場全体の分」「業種の分」「会社の分」に分け、業績と需給から理由の候補を並べる
 function whySection(s){
@@ -1318,6 +1361,10 @@ function openDetail(code, push=true){
   $("#dStar").dataset.star = s.c;
   const phase = s.ph==="up" ? `反発中(谷から ${spct(s.leg,0)})` : s.ph==="down" ? `下落中(山から ${spct(s.leg,0)})` : "–";
   let html = `
+  <section class="sec" id="dAbout">
+    <h3>どんな会社? <span>${esc(s.s)}</span></h3>
+    <p class="about" id="aboutTxt">会社の説明を読み込んでいます…</p>
+  </section>
   <section class="sec">
     <h3>総合スコア <span>${esc(s.m)} · ${esc(s.s)} · ${esc(s.mg)}</span></h3>
     <div style="display:flex;align-items:baseline;gap:14px;flex-wrap:wrap">
@@ -1437,6 +1484,7 @@ function openDetail(code, push=true){
   </section>
   <button class="btn backbig" data-close>‹ 一覧に戻る</button>`;
   $("#dBody").innerHTML = html;
+  loadAbout(s0);
   $("#sheet").hidden = false;
   $("#sheet").scrollTop = 0;
   document.body.classList.add("split");
