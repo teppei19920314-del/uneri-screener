@@ -24,3 +24,12 @@ self.addEventListener("notificationclick", e => {
     return self.clients.openWindow(url);
   }));
 });
+
+// 画面のファイル(HTML・JS・CSS)は毎回サーバーに新しい版があるか確かめる。
+// iPhoneのホーム画面アプリが古い画面を10分ほど使い続けるのを防ぐ(保存はしない)。
+self.addEventListener("fetch", e => {
+  const req = e.request, url = new URL(req.url);
+  if (req.method !== "GET" || url.origin !== self.location.origin) return;
+  if (!(req.mode === "navigate" || /\.(html|js|css|webmanifest)$/.test(url.pathname))) return;
+  e.respondWith(fetch(url.href, { cache: "no-cache", credentials: "same-origin" }).catch(() => fetch(req)));
+});
