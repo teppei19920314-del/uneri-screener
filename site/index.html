@@ -87,6 +87,14 @@ select{width:100%;padding:7px 10px;border:1px solid var(--rule);border-radius:8p
 .panel-foot{display:flex;gap:8px;justify-content:flex-end}
 
 /* summary */
+.more{margin-top:10px}
+.more>summary{list-style:none;cursor:pointer;display:inline-flex;align-items:center;gap:6px;border:1px solid var(--rule);background:var(--sheet);border-radius:999px;padding:7px 14px;font-size:13.5px;font-weight:700;color:var(--ink-2)}
+.more>summary::-webkit-details-marker{display:none}
+.more>summary::after{content:"▾";font-size:11px}
+.more[open]>summary::after{content:"▴"}
+.more[open]>summary{margin-bottom:12px}
+.more .gl{display:grid;gap:4px;margin:12px 0 0;padding:10px 12px;background:var(--paper);border-radius:8px;font-size:12.5px;color:var(--ink-2);line-height:1.5}
+.more .gl b{color:var(--ink)}
 .summary{display:flex;flex-wrap:wrap;align-items:baseline;gap:4px 14px;padding-block:14px 8px}
 .summary .big{font-family:var(--f-display);font-size:28px;font-weight:800;line-height:1}
 .summary .sub{color:var(--ink-2);font-size:13px}
@@ -455,7 +463,8 @@ let cfg = Object.assign({}, JSON.parse(JSON.stringify(DEFAULTS)), store.get("une
 ["cswBy","campBy"].forEach(k=>{ cfg[k] = Object.assign({}, DEFAULTS[k], cfg[k] || {}); });
 if (cfg.cpos === 55) cfg.cpos = 100;   // 以前の「すべて」の値
 let watch = new Set(store.get("uneri.watch", []));
-let wtarget = store.get("uneri.watchTarget", {});   // ★銘柄ごとの目標価格 {コード: 円}
+let wtarget = store.get("uneri.watchTarget", {});
+let moreOpen = {};   // 詳細画面の「くわしい数字」を開いたままにする(銘柄を移っても)   // ★銘柄ごとの目標価格 {コード: 円}
 let DATA = null, view = "chart", popLimit = 50;
 
 /* ---------- formatting ---------- */
@@ -1202,6 +1211,8 @@ function openDetail(code, push=true){
     <h3>${yl}チャートのうねり <span>週足終値で25%以上の反転を1波と数えています</span></h3>
     ${spanButtons(s0)}
     ${priceChart(s)}
+    <details class="more" data-more="wave"${moreOpen.wave ? " open" : ""}>
+    <summary>くわしい数字を見る</summary>
     <dl class="kv">
       <div><dt>${yl}レンジの位置</dt><dd>${pct(s.pos,1)}</dd></div>
       <div><dt>いまの局面</dt><dd style="font-family:var(--f-body);font-size:14px">${phase}</dd></div>
@@ -1214,6 +1225,18 @@ function openDetail(code, push=true){
       <div><dt>13週線</dt><dd style="font-family:var(--f-body);font-size:14px">${s.ma?"上にある":"下にある"}</dd></div>
     </dl>
     ${spanTable(s0)}
+    <div class="gl">
+      <span><b>レンジの位置</b>: 期間の最安値を0%、最高値を100%としたときの今の株価。低いほど安値圏。</span>
+      <span><b>いまの局面</b>: 25%以上動いた最後の山か谷から、下げている途中か上げている途中か。</span>
+      <span><b>つけた谷</b>: 25%以上下げてから25%以上戻した回数。多いほど、上げ下げを繰り返してきた銘柄。</span>
+      <span><b>1波の値幅</b>: 1回の上げ下げの大きさの中央値。戻ったときにどれくらい上がりやすいかの目安。</span>
+      <span><b>最寄りの過去の谷</b>: いちばん近い過去の底との差。±15%以内は「底値帯」。</span>
+      <span><b>傾き</b>: 期間全体で見た、1年あたりの上がり下がりの傾向。マイナスは長く下がり続けている。</span>
+      <span><b>52週安値から</b>: 1年間の最安値から今どれだけ戻っているか、最安値は何週前か。</span>
+      <span><b>RSI</b>: 最近14週の上げと下げの勢い。30以下は売られすぎ、70以上は買われすぎの目安。</span>
+      <span><b>13週線</b>: 約3か月の平均株価。上にあると、下げが止まって反転し始めたサイン。</span>
+    </div>
+    </details>
   </section>
   ${bottomSection(s0)}
   ${window.Lots ? Lots.detailHtml(s) : ""}
@@ -1430,6 +1453,7 @@ function goBack(){
   }
 }
 $("#dBack").addEventListener("click", goBack);
+$("#dBody").addEventListener("toggle", e=>{ const d = e.target; if (d.dataset && d.dataset.more) moreOpen[d.dataset.more] = d.open; }, true);
 $("#dBody").addEventListener("click", e=>{
   if (e.target.closest("[data-close]")) return goBack();
   const tg = e.target.closest("[data-settgt]");
