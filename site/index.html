@@ -150,12 +150,19 @@ select{width:100%;padding:7px 10px;border:1px solid var(--rule);border-radius:8p
 .kv dd{margin:0;font-family:var(--f-num);font-variant-numeric:tabular-nums;font-size:15px;font-weight:500}
 dl{margin:0}
 .up{color:var(--rise)} .dn{color:var(--fall)}
-.wtgt{display:flex;align-items:center;flex-wrap:wrap;gap:6px 10px;margin-top:8px;font-size:13px;color:var(--ink-2)}
-.wtgt label{display:flex;align-items:center;gap:6px}
-.wtgt input{width:8em;padding:5px 8px;border:1px solid var(--rule);border-radius:8px;background:var(--paper);color:var(--ink);font-family:var(--f-num);font-size:16px;text-align:right}
-.wtgt input:focus{outline:2px solid var(--ai);outline-offset:1px}
-.wtgt .hit{color:var(--ai);font-weight:700}
-.wtgt .est{flex-basis:100%;color:var(--ink-3);font-size:12.5px}
+.wtgt{display:grid;grid-template-columns:minmax(0,1.15fr) minmax(0,1fr);gap:8px;margin-top:10px;font-size:12.5px;color:var(--ink-2)}
+.wtgt .lbl{display:block;font-size:11.5px;font-weight:700;letter-spacing:.03em;color:var(--ink-3)}
+.wbot{background:var(--ai-soft);border:1px solid color-mix(in srgb,var(--ai) 35%,transparent);border-radius:10px;padding:8px 10px;min-width:0}
+.wbot .lbl{color:var(--ai)}
+.wbot b{display:block;font-family:var(--f-num);font-variant-numeric:tabular-nums;font-size:22px;line-height:1.15;color:var(--ai);margin:2px 0}
+.wbot .sub{display:block;line-height:1.35}
+.wbot.warn{background:var(--warn-bg);border-color:transparent}
+.wbot.warn .lbl,.wbot.warn b{color:var(--warn)}
+.wset{border:1px solid var(--rule);border-radius:10px;padding:8px 10px;min-width:0;display:grid;align-content:start;gap:4px}
+.wset label{display:flex;align-items:center;gap:6px}
+.wset input{flex:1;min-width:0;width:100%;padding:5px 8px;border:1px solid var(--rule);border-radius:8px;background:var(--paper);color:var(--ink);font-family:var(--f-num);font-size:16px;text-align:right}
+.wset input:focus{outline:2px solid var(--ai);outline-offset:1px}
+.wset .hit{color:var(--ai);font-weight:700}
 .bot-main{display:flex;align-items:baseline;gap:10px;flex-wrap:wrap;margin-bottom:10px}
 .bot-main b{font-family:var(--f-num);font-size:28px;color:var(--ai);line-height:1}
 .bot-warn{background:var(--warn-bg);border-radius:8px;padding:8px 10px;font-size:13px;margin:8px 0}
@@ -938,14 +945,24 @@ const numIn = v => { const p = String(v ?? "").normalize("NFKC").replace(/[^\d.]
 const fmtIn = v => v == null ? "" : Number(v).toLocaleString("ja-JP", {maximumFractionDigits:1});
 function targetGap(s, t){
   if (!t || s.p == null) return "";
-  return s.p <= t ? `<span class="hit">目標に届いています</span>` : `<span>目標まで <b class="num">${spct(t / s.p - 1)}</b>(あと${yen(s.p >= 100 ? Math.round(s.p - t) : s.p - t)}下)</span>`;
+  return s.p <= t ? `<span class="hit">目標に届いています</span>` : `<span>目標まで <b class="num">${spct(t / s.p - 1)}</b><br>あと${yen(s.p >= 100 ? Math.round(s.p - t) : s.p - t)}下</span>`;
+}
+function bottomBox(s){
+  const s0 = DATA.stocks.find(x => x.c === s.c), b = s0 && bottomEst(s0);
+  if (!b) return `<div class="wbot"><span class="lbl">底値の目安</span><b>–</b><span class="sub">山と谷がまだそろっていません</span></div>`;
+  if (b.kind === "up") return `<div class="wbot"><span class="lbl">直近の底(反発中)</span><b>${yen(b.mid)}</b><span class="sub">底から ${spct(b.cur, 0)}</span></div>`;
+  if (b.state === "below") return `<div class="wbot warn"><span class="lbl">底値の目安</span><b>–</b><span class="sub">過去の下げ幅を超えて下落中(山から ${spct(b.cur, 0)})${b.nextLow ? `・下の谷 ${yen(b.nextLow)}` : ""}</span></div>`;
+  return `<div class="wbot"><span class="lbl">底値の目安</span><b>${yen(b.mid)}</b><span class="sub">${yen(b.lo)}〜${yen(b.hi)}<br>現在から ${spct(b.mid / s0.p - 1, 0)}</span></div>`;
 }
 function targetRow(s){
   const t = wtarget[s.c];
   return `<div class="wtgt" data-wtrow="${esc(s.c)}">
-      <label>目標 <input data-wt="${esc(s.c)}" inputmode="decimal" enterkeyhint="done" autocomplete="off" placeholder="未設定" value="${fmtIn(t)}" aria-label="${esc(s.n)}の目標価格(円)"> 円</label>
-      <span data-wtgap="${esc(s.c)}">${targetGap(s, t)}</span>
-      ${(() => { const s0 = DATA.stocks.find(x => x.c === s.c), l = s0 ? bottomLine(s0) : ""; return l ? `<span class="est">${l}</span>` : ""; })()}
+      ${bottomBox(s)}
+      <div class="wset">
+        <span class="lbl">目標</span>
+        <label><input data-wt="${esc(s.c)}" inputmode="decimal" enterkeyhint="done" autocomplete="off" placeholder="未設定" value="${fmtIn(t)}" aria-label="${esc(s.n)}の目標価格(円)">円</label>
+        <span data-wtgap="${esc(s.c)}">${targetGap(s, t)}</span>
+      </div>
     </div>`;
 }
 function setTarget(code, v){
