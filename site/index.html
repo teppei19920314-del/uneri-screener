@@ -226,7 +226,8 @@ table.lottotal th,table.lottotal td{text-align:center}
 #lotToast{position:fixed;left:50%;bottom:calc(18px + env(safe-area-inset-bottom,0px));transform:translateX(-50%);background:var(--ink);color:var(--sheet);padding:9px 14px;border-radius:8px;font-size:13.5px;z-index:60;width:max-content;max-width:calc(100vw - 32px)}
 .lock form input[type=email]{width:100%;padding:10px 12px;border:1px solid var(--rule);border-radius:8px;background:var(--paper);font-size:16px}
 
-/* お知らせ */
+/* 設定(歯車)・お知らせ */
+#settingsView .seg{flex-wrap:wrap}
 .bell{position:relative;padding:7px 10px;line-height:0}
 .bell svg{width:20px;height:20px}
 .bell i{position:absolute;top:4px;right:6px;width:9px;height:9px;border-radius:50%;background:var(--ai);border:2px solid var(--sheet)}
@@ -255,7 +256,7 @@ table.lottotal th,table.lottotal td{text-align:center}
       <h1 id="pageTitle">うねり底スクリーナー</h1>
       <p id="asof">データを読み込んでいます</p>
     </div>
-    <button class="btn bell" id="bellBtn" type="button" aria-label="お知らせ"><svg viewBox="0 0 20 20" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M5 8a5 5 0 0110 0c0 4 1.5 5.5 1.5 5.5h-13S5 12 5 8z"/><path d="M8.5 16.5a1.7 1.7 0 003 0"/></svg><i id="bellDot" hidden></i></button>
+    <button class="btn bell" id="bellBtn" type="button" aria-label="設定"><svg viewBox="0 0 20 20" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><circle cx="10" cy="10" r="2.6"/><path d="M10 1.8v2.3M10 15.9v2.3M18.2 10h-2.3M4.1 10H1.8M15.8 4.2l-1.6 1.6M5.8 14.2l-1.6 1.6M15.8 15.8l-1.6-1.6M5.8 5.8L4.2 4.2"/><circle cx="10" cy="10" r="5.6"/></svg><i id="bellDot" hidden></i></button>
     <button class="btn" id="toggleFilters" aria-expanded="false" aria-controls="panel">条件</button>
   </div>
   <nav class="wrap pnav" aria-label="ページ">
@@ -331,28 +332,6 @@ table.lottotal th,table.lottotal td{text-align:center}
         <div class="seg"><button class="chipbtn" id="f-rev" aria-pressed="false">13週線より上だけ</button></div>
       </div>
     </div>
-    <div class="ctl">
-        <div class="lab"><span>画面の色</span></div>
-        <div class="seg" id="f-color" role="group" aria-label="画面の色">
-          <button class="chipbtn" data-v="ai"><i class="swatch" style="background:#b8232c"></i>朱赤</button>
-          <button class="chipbtn" data-v="daidai"><i class="swatch" style="background:#b8520f"></i>橙</button>
-          <button class="chipbtn" data-v="ki"><i class="swatch" style="background:#c9a400"></i>黄</button>
-          <button class="chipbtn" data-v="midori"><i class="swatch" style="background:#2e7d4a"></i>緑</button>
-          <button class="chipbtn" data-v="ao"><i class="swatch" style="background:#1f6fa8"></i>青</button>
-          <button class="chipbtn" data-v="ai-blue"><i class="swatch" style="background:#2b4c9b"></i>藍</button>
-          <button class="chipbtn" data-v="murasaki"><i class="swatch" style="background:#6b3fa0"></i>紫</button>
-          <button class="chipbtn" data-v="sumi"><i class="swatch" style="background:#333333"></i>墨</button>
-        </div>
-    </div>
-    <div class="ctl">
-        <div class="lab"><span>明るさ</span></div>
-        <div class="seg" id="f-mode" role="group" aria-label="明るさ">
-          <button class="chipbtn" data-v="auto">自動</button>
-          <button class="chipbtn" data-v="light">ライト</button>
-          <button class="chipbtn" data-v="dark">ダーク</button>
-        </div>
-      </div>
-    <small class="note" style="margin-top:-8px">色と明るさは、この端末に保存され、すべてのページで共通です(「初期値に戻す」では変わりません)。自動はiPhoneのライト・ダークの設定に合わせます。</small>
     <p class="note" style="margin:0">自己資本比率・レンジ位置は「総合スコア」の絞り込みに使います。10年の傾き・売買代金・信用倍率・市場・13週線は「チャート」にも、市場は「人気株」にも、市場・売買代金・傾きは「セクター」の底値圏の銘柄にも効きます。</p>
     <div class="panel-foot">
       <button class="btn" id="resetFilters">初期値に戻す</button>
@@ -402,7 +381,35 @@ table.lottotal th,table.lottotal td{text-align:center}
   </div>
   <div class="list" id="list"></div>
   <div id="lotsView" hidden></div>
-  <div id="alertsView" hidden></div>
+  <div id="settingsView" hidden>
+    <div class="stack" style="padding-top:14px;padding-bottom:0">
+      <section class="sec"><h3>画面の色と明るさ</h3>
+    <div class="ctl">
+            <div class="lab"><span>画面の色</span></div>
+            <div class="seg" id="f-color" role="group" aria-label="画面の色">
+              <button class="chipbtn" data-v="ai"><i class="swatch" style="background:#b8232c"></i>朱赤</button>
+              <button class="chipbtn" data-v="daidai"><i class="swatch" style="background:#b8520f"></i>橙</button>
+              <button class="chipbtn" data-v="ki"><i class="swatch" style="background:#c9a400"></i>黄</button>
+              <button class="chipbtn" data-v="midori"><i class="swatch" style="background:#2e7d4a"></i>緑</button>
+              <button class="chipbtn" data-v="ao"><i class="swatch" style="background:#1f6fa8"></i>青</button>
+              <button class="chipbtn" data-v="ai-blue"><i class="swatch" style="background:#2b4c9b"></i>藍</button>
+              <button class="chipbtn" data-v="murasaki"><i class="swatch" style="background:#6b3fa0"></i>紫</button>
+              <button class="chipbtn" data-v="sumi"><i class="swatch" style="background:#333333"></i>墨</button>
+            </div>
+        </div>
+        <div class="ctl">
+            <div class="lab"><span>明るさ</span></div>
+            <div class="seg" id="f-mode" role="group" aria-label="明るさ">
+              <button class="chipbtn" data-v="auto">自動</button>
+              <button class="chipbtn" data-v="light">ライト</button>
+              <button class="chipbtn" data-v="dark">ダーク</button>
+            </div>
+          </div>
+        <p class="note" style="margin:0">色と明るさは、この端末に保存され、すべてのページで共通です。自動はiPhoneのライト・ダークの設定に合わせます。</p>
+          </section>
+    </div>
+    <div id="alertsView"></div>
+  </div>
   <p class="note" style="padding-bottom:24px">株価はYahoo!ファイナンス、財務はJ-Quants API、信用残と空売りはJPX公表資料から自動計算しています。表示は銘柄探しの補助で、売買の推奨ではありません。最終判断は決算資料などで必ず確認してください。</p>
 </main>
 
@@ -816,7 +823,7 @@ function render(){
   $("#tabsRow").hidden = view === "pop" || srch || own;
   $("#list").hidden = own;
   $("#lotsView").hidden = !lots;
-  $("#alertsView").hidden = !alerts;
+  $("#settingsView").hidden = !alerts;
   if (own){ $("#chartBar").hidden = true; if (lots && window.Lots) Lots.render(); if (alerts && window.Alerts) Alerts.render(); return; }
   if (srch){ $("#chartBar").hidden = true; return renderSearch(); }
   if (view === "pop"){ $("#chartBar").hidden = true; return renderPop(); }
@@ -1215,7 +1222,7 @@ function setView(v){
   view = v; store.set("uneri.view", v);
   Object.entries(TABS).forEach(([k,id])=>$(id).setAttribute("aria-pressed", k===v));
   const pop = v === "pop", srch = v === "search", lots = v === "lots", alerts = v === "alerts";
-  const title = pop ? "人気株の下落率" : srch ? "銘柄検索" : lots ? "ロット管理" : alerts ? "お知らせ" : "うねり底スクリーナー";
+  const title = pop ? "人気株の下落率" : srch ? "銘柄検索" : lots ? "ロット管理" : alerts ? "設定" : "うねり底スクリーナー";
   $("#pageTitle").textContent = title;
   document.title = title;
   [["#navMain", !pop && !srch && !lots && !alerts], ["#navPop", pop], ["#navSearch", srch], ["#navLots", lots]].forEach(([id, on]) => {
@@ -1300,7 +1307,7 @@ function route(){
   if (h === "#popular" && view !== "pop"){ if (TABS[view]) store.set("uneri.lastMain", view); setView("pop"); }
   if (h === "#search" && view !== "search"){ if (TABS[view]) store.set("uneri.lastMain", view); setView("search"); }
   if (h === "#lots" && view !== "lots"){ if (TABS[view]) store.set("uneri.lastMain", view); setView("lots"); }
-  if (h === "#alerts" && view !== "alerts"){ if (TABS[view]) store.set("uneri.lastMain", view); closeDetail(); setView("alerts"); }
+  if ((h === "#alerts" || h === "#settings") && view !== "alerts"){ if (TABS[view]) store.set("uneri.lastMain", view); closeDetail(); setView("alerts"); }
   if (h === "#conditions") setPanel(true);
   if (h.startsWith("#c") && DATA) openDetail(h.slice(2), false); else closeDetail();
 }

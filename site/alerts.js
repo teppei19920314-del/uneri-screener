@@ -105,8 +105,8 @@
 
   function render() {
     const host = $("alertsView");
-    if (!host || host.hidden) return;
-    host.innerHTML = `<div class="stack" style="padding-top:14px">
+    if (!host || host.closest("[hidden]")) return;
+    host.innerHTML = `<div class="stack" style="padding-top:12px">
       <section class="sec"><h3>通知 <span>毎日の更新のあとに届きます</span></h3>${settingsHtml()}</section>
       <section class="sec"><h3>お知らせ <span>タップで詳細</span></h3><div class="lotlist">${listHtml()}</div></section>
       <section class="sec"><h3>どんなときに届くか</h3>
@@ -144,7 +144,7 @@
       api = a;
       if ("serviceWorker" in navigator) {
         navigator.serviceWorker.register("sw.js").then(() => checkSub().then(render)).catch(() => { subscribed = false; render(); });
-        navigator.serviceWorker.addEventListener("message", ev => { if (ev.data && ev.data.open) location.hash = "#alerts"; });
+        navigator.serviceWorker.addEventListener("message", ev => { if (ev.data && ev.data.open) { location.hash = "#alerts"; setTimeout(() => { const h = $("alertsView"); if (h) h.scrollIntoView(); }, 300); } });
       } else subscribed = false;
     },
     render, changed() { render(); dot(); },

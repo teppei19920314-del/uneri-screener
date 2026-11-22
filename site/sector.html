@@ -45,6 +45,8 @@ html,body{margin:0}
 body{background:var(--paper);color:var(--ink);font-family:var(--f);font-size:15px;line-height:1.55;-webkit-text-size-adjust:100%}
 body::before{content:"";position:fixed;inset:0 0 auto;height:env(safe-area-inset-top,0px);z-index:30;background:var(--sheet)}
 [hidden]{display:none!important}
+.gearlink{padding:7px 10px;line-height:0}
+.gearlink svg{width:20px;height:20px}
 button,input{font:inherit;color:inherit}
 .num{font-variant-numeric:tabular-nums}
 .wrap{max-width:720px;margin:0 auto;padding-left:max(16px,env(safe-area-inset-left,0px));padding-right:max(16px,env(safe-area-inset-right,0px))}
@@ -150,6 +152,7 @@ ol.howto{margin:0;padding-left:1.3em;display:grid;gap:6px;font-size:13.5px;line-
       <h1>セクターローテーション</h1>
       <p id="asof">データを読み込んでいます</p>
     </div>
+    <a class="btn gearlink" href="index.html#settings" aria-label="設定"><svg viewBox="0 0 20 20" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><circle cx="10" cy="10" r="2.6"/><path d="M10 1.8v2.3M10 15.9v2.3M18.2 10h-2.3M4.1 10H1.8M15.8 4.2l-1.6 1.6M5.8 14.2l-1.6 1.6M15.8 15.8l-1.6-1.6M5.8 5.8L4.2 4.2"/><circle cx="10" cy="10" r="5.6"/></svg></a>
     <a class="btn" href="index.html#conditions">条件</a>
   </div>
   <nav class="wrap pnav" aria-label="ページ">
