@@ -1,0 +1,58 @@
+/* 画面の色の切り替え。朱赤(最初の色)は各ページの:rootの値をそのまま使う。
+   山・谷・現在値などの意味のある色(--rise --fall --warn と局面の色)は、どの色でも変えない。 */
+
+/* 橙 */
+:root[data-color="daidai"]{--paper:#f8f1ea; --sheet:#fffbf7; --ink:#2b1a0d; --ink-2:#5f4a38; --ink-3:#8c7663; --rule:#ead8c7; --rule-2:#f3e6da; --ai:#b8520f; --ai-soft:#f8e3d2; --bad-bg:#f8e3d2}
+@media (prefers-color-scheme: dark){:root[data-color="daidai"]:not([data-theme="light"]){--paper:#17110b; --sheet:#211912; --ink:#f6ece3; --ink-2:#c9b4a1; --ink-3:#96806c; --rule:#3f2f22; --rule-2:#2e231a; --ai:#f29a5a; --ai-soft:#3d2615; --bad-bg:#3d2615}}
+:root[data-color="daidai"][data-theme="dark"]{--paper:#17110b; --sheet:#211912; --ink:#f6ece3; --ink-2:#c9b4a1; --ink-3:#96806c; --rule:#3f2f22; --rule-2:#2e231a; --ai:#f29a5a; --ai-soft:#3d2615; --bad-bg:#3d2615}
+
+/* 黄 */
+:root[data-color="ki"]{--paper:#f7f4e6; --sheet:#fffdf5; --ink:#2a2410; --ink-2:#5d5537; --ink-3:#8a8162; --rule:#e6dfc2; --rule-2:#f0ebd6; --ai:#7d6400; --ai-soft:#f3ecc8; --bad-bg:#f3ecc8}
+@media (prefers-color-scheme: dark){:root[data-color="ki"]:not([data-theme="light"]){--paper:#15130a; --sheet:#1f1c10; --ink:#f6f1dc; --ink-2:#c9c09c; --ink-3:#958c6a; --rule:#3b3620; --rule-2:#2b2717; --ai:#e8c84a; --ai-soft:#3a3214; --bad-bg:#3a3214}}
+:root[data-color="ki"][data-theme="dark"]{--paper:#15130a; --sheet:#1f1c10; --ink:#f6f1dc; --ink-2:#c9c09c; --ink-3:#958c6a; --rule:#3b3620; --rule-2:#2b2717; --ai:#e8c84a; --ai-soft:#3a3214; --bad-bg:#3a3214}
+
+/* 緑 */
+:root[data-color="midori"]{--paper:#eef4ef; --sheet:#fbfefb; --ink:#12241a; --ink-2:#45584c; --ink-3:#728578; --rule:#d3e2d7; --rule-2:#e4eee7; --ai:#2e7d4a; --ai-soft:#dff0e4; --bad-bg:#dff0e4}
+@media (prefers-color-scheme: dark){:root[data-color="midori"]:not([data-theme="light"]){--paper:#0d1510; --sheet:#141f18; --ink:#e6f2ea; --ink-2:#aec4b5; --ink-3:#7b9183; --rule:#263a2d; --rule-2:#1c2b21; --ai:#6fcf8f; --ai-soft:#183323; --bad-bg:#183323}}
+:root[data-color="midori"][data-theme="dark"]{--paper:#0d1510; --sheet:#141f18; --ink:#e6f2ea; --ink-2:#aec4b5; --ink-3:#7b9183; --rule:#263a2d; --rule-2:#1c2b21; --ai:#6fcf8f; --ai-soft:#183323; --bad-bg:#183323}
+
+/* 青 */
+:root[data-color="ao"]{--paper:#edf4f8; --sheet:#fafdff; --ink:#0f2230; --ink-2:#435866; --ink-3:#6f8593; --rule:#d0e0ea; --rule-2:#e2edf3; --ai:#1f6fa8; --ai-soft:#dcebf6; --bad-bg:#dcebf6}
+@media (prefers-color-scheme: dark){:root[data-color="ao"]:not([data-theme="light"]){--paper:#0c141a; --sheet:#131e26; --ink:#e5f0f7; --ink-2:#a9bfcd; --ink-3:#78909f; --rule:#243846; --rule-2:#1a2a35; --ai:#6cb8ec; --ai-soft:#173045; --bad-bg:#173045}}
+:root[data-color="ao"][data-theme="dark"]{--paper:#0c141a; --sheet:#131e26; --ink:#e5f0f7; --ink-2:#a9bfcd; --ink-3:#78909f; --rule:#243846; --rule-2:#1a2a35; --ai:#6cb8ec; --ai-soft:#173045; --bad-bg:#173045}
+
+/* 藍 */
+:root[data-color="ai-blue"]{
+  --paper:#eef1f7; --sheet:#fbfcff; --ink:#141a2e; --ink-2:#47506b; --ink-3:#737b94;
+  --rule:#d5dbe8; --rule-2:#e6eaf2; --ai:#2b4c9b; --ai-soft:#e1e8f7; --bad-bg:#e3e8f6}
+@media (prefers-color-scheme: dark){:root[data-color="ai-blue"]:not([data-theme="light"]){
+  --paper:#0e121c; --sheet:#161b28; --ink:#e8ecf6; --ink-2:#b0b8cc; --ink-3:#7d869c;
+  --rule:#2a3247; --rule-2:#1f2636; --ai:#8aa8f0; --ai-soft:#1c2745; --bad-bg:#1c2745}}
+:root[data-color="ai-blue"][data-theme="dark"]{
+  --paper:#0e121c; --sheet:#161b28; --ink:#e8ecf6; --ink-2:#b0b8cc; --ink-3:#7d869c;
+  --rule:#2a3247; --rule-2:#1f2636; --ai:#8aa8f0; --ai-soft:#1c2745; --bad-bg:#1c2745}
+
+/* 紫 */
+:root[data-color="murasaki"]{
+  --paper:#f3eff7; --sheet:#fdfbff; --ink:#22162e; --ink-2:#574a66; --ink-3:#84779a;
+  --rule:#ddd3e8; --rule-2:#ebe4f2; --ai:#6b3fa0; --ai-soft:#ece2f7; --bad-bg:#ece2f7}
+@media (prefers-color-scheme: dark){:root[data-color="murasaki"]:not([data-theme="light"]){
+  --paper:#130e19; --sheet:#1c1524; --ink:#efe8f6; --ink-2:#c0b2cf; --ink-3:#8f81a0;
+  --rule:#352a42; --rule-2:#271e31; --ai:#c09af0; --ai-soft:#2d1f40; --bad-bg:#2d1f40}}
+:root[data-color="murasaki"][data-theme="dark"]{
+  --paper:#130e19; --sheet:#1c1524; --ink:#efe8f6; --ink-2:#c0b2cf; --ink-3:#8f81a0;
+  --rule:#352a42; --rule-2:#271e31; --ai:#c09af0; --ai-soft:#2d1f40; --bad-bg:#2d1f40}
+
+/* 墨 */
+:root[data-color="sumi"]{
+  --paper:#f2f2f0; --sheet:#fdfdfc; --ink:#1c1c1c; --ink-2:#4f4f4f; --ink-3:#7c7c7c;
+  --rule:#dcdcda; --rule-2:#eaeae8; --ai:#333333; --ai-soft:#e6e6e4; --bad-bg:#e8e8e6}
+@media (prefers-color-scheme: dark){:root[data-color="sumi"]:not([data-theme="light"]){
+  --paper:#111111; --sheet:#1b1b1b; --ink:#ededed; --ink-2:#b8b8b8; --ink-3:#858585;
+  --rule:#333333; --rule-2:#262626; --ai:#e0e0e0; --ai-soft:#2c2c2c; --bad-bg:#2c2c2c}}
+:root[data-color="sumi"][data-theme="dark"]{
+  --paper:#111111; --sheet:#1b1b1b; --ink:#ededed; --ink-2:#b8b8b8; --ink-3:#858585;
+  --rule:#333333; --rule-2:#262626; --ai:#e0e0e0; --ai-soft:#2c2c2c; --bad-bg:#2c2c2c}
+
+/* 色の選択ボタン */
+.swatch{display:inline-block;width:12px;height:12px;border-radius:50%;margin-right:6px;vertical-align:-1px;border:1px solid rgba(128,128,128,.4)}

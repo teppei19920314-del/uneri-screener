@@ -245,6 +245,8 @@ table.lottotal th,table.lottotal td{text-align:center}
 .lock label.chk{display:flex;gap:8px;align-items:center;font-size:13px;color:var(--ink-2)}
 @media (prefers-reduced-motion: no-preference){.card{transition:border-color .15s}.card:hover{border-color:var(--ai)}}
 </style>
+<link rel="stylesheet" href="theme.css">
+<script src="theme.js"></script>
 </head>
 <body>
 <header class="top">
@@ -329,6 +331,28 @@ table.lottotal th,table.lottotal td{text-align:center}
         <div class="seg"><button class="chipbtn" id="f-rev" aria-pressed="false">13週線より上だけ</button></div>
       </div>
     </div>
+    <div class="ctl">
+        <div class="lab"><span>画面の色</span></div>
+        <div class="seg" id="f-color" role="group" aria-label="画面の色">
+          <button class="chipbtn" data-v="ai"><i class="swatch" style="background:#b8232c"></i>朱赤</button>
+          <button class="chipbtn" data-v="daidai"><i class="swatch" style="background:#b8520f"></i>橙</button>
+          <button class="chipbtn" data-v="ki"><i class="swatch" style="background:#c9a400"></i>黄</button>
+          <button class="chipbtn" data-v="midori"><i class="swatch" style="background:#2e7d4a"></i>緑</button>
+          <button class="chipbtn" data-v="ao"><i class="swatch" style="background:#1f6fa8"></i>青</button>
+          <button class="chipbtn" data-v="ai-blue"><i class="swatch" style="background:#2b4c9b"></i>藍</button>
+          <button class="chipbtn" data-v="murasaki"><i class="swatch" style="background:#6b3fa0"></i>紫</button>
+          <button class="chipbtn" data-v="sumi"><i class="swatch" style="background:#333333"></i>墨</button>
+        </div>
+    </div>
+    <div class="ctl">
+        <div class="lab"><span>明るさ</span></div>
+        <div class="seg" id="f-mode" role="group" aria-label="明るさ">
+          <button class="chipbtn" data-v="auto">自動</button>
+          <button class="chipbtn" data-v="light">ライト</button>
+          <button class="chipbtn" data-v="dark">ダーク</button>
+        </div>
+      </div>
+    <small class="note" style="margin-top:-8px">色と明るさは、この端末に保存され、すべてのページで共通です(「初期値に戻す」では変わりません)。自動はiPhoneのライト・ダークの設定に合わせます。</small>
     <p class="note" style="margin:0">自己資本比率・レンジ位置は「総合スコア」の絞り込みに使います。10年の傾き・売買代金・信用倍率・市場・13週線は「チャート」にも、市場は「人気株」にも、市場・売買代金・傾きは「セクター」の底値圏の銘柄にも効きます。</p>
     <div class="panel-foot">
       <button class="btn" id="resetFilters">初期値に戻す</button>
@@ -1166,6 +1190,16 @@ function syncControls(){
   }));
 }
 function changed(){ store.set("uneri.cfg", cfg); syncControls(); render(); }
+// 画面の色と明るさ(theme.js)
+function syncTheme(){
+  if (!window.UneriTheme) return;
+  const v = UneriTheme.get();
+  document.querySelectorAll("#f-color .chipbtn").forEach(b=>b.setAttribute("aria-pressed", b.dataset.v===v.color));
+  document.querySelectorAll("#f-mode .chipbtn").forEach(b=>b.setAttribute("aria-pressed", b.dataset.v===v.mode));
+}
+$("#f-color").addEventListener("click", e=>{ const b=e.target.closest("button"); if(!b || !window.UneriTheme) return; UneriTheme.set({color:b.dataset.v}); syncTheme(); });
+$("#f-mode").addEventListener("click", e=>{ const b=e.target.closest("button"); if(!b || !window.UneriTheme) return; UneriTheme.set({mode:b.dataset.v}); syncTheme(); });
+syncTheme();
 [["#f-eq","eq"],["#f-pos","pos"],["#f-tr","tr"]].forEach(([id,k])=>$(id).addEventListener("input", e=>{cfg[k]=+e.target.value; changed();}));
 [["#f-tv","tv",Number],["#f-mr","mr",Number],["#f-sort","sort",String]].forEach(([id,k,f])=>$(id).addEventListener("change", e=>{cfg[k]=f(e.target.value); changed();}));
 $("#f-short").addEventListener("click", e=>{ const b=e.target.closest("button"); if(!b) return; cfg.short=b.dataset.v; changed(); });
