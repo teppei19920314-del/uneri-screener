@@ -42,6 +42,17 @@ class Evaluate(unittest.TestCase):
         self.assertIn("上場来", got["2222:pos15"]["msg"])
         self.assertIn("目標の3,100円", got["a:target:3100"]["msg"])
 
+    def test_watch_targets(self):
+        # ★の目標価格: 現在値が目標以下で通知。★を外した銘柄・0・文字は無視する
+        targets = {"3333": 3000, "1111": 1000, "2222": 0, "9999": 50, "4444": "x"}
+        got = {i["key"]: i for i in notify.evaluate(STOCKS, ["3333", "1111"], [], targets)}
+        self.assertIn("3333:wtarget:3000", got)
+        self.assertNotIn("1111:wtarget:1000", got)
+        self.assertEqual(got["3333:wtarget:3000"]["kind"], "wtarget")
+        self.assertIn("★の目標 3,000円", got["3333:wtarget:3000"]["msg"])
+        m = notify.message(list(got.values()), "2026-11-21")
+        self.assertIn("★1銘柄が目標価格に到達", m["body"])
+
     def test_message(self):
         items = notify.evaluate(STOCKS, ["1111", "2222"], [{"id": "a", "code": "3333", "target": 3100}])
         m = notify.message(items, "2026-11-21")

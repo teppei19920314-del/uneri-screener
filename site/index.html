@@ -150,6 +150,11 @@ select{width:100%;padding:7px 10px;border:1px solid var(--rule);border-radius:8p
 .kv dd{margin:0;font-family:var(--f-num);font-variant-numeric:tabular-nums;font-size:15px;font-weight:500}
 dl{margin:0}
 .up{color:var(--rise)} .dn{color:var(--fall)}
+.wtgt{display:flex;align-items:center;flex-wrap:wrap;gap:6px 10px;margin-top:8px;font-size:13px;color:var(--ink-2)}
+.wtgt label{display:flex;align-items:center;gap:6px}
+.wtgt input{width:8em;padding:5px 8px;border:1px solid var(--rule);border-radius:8px;background:var(--paper);color:var(--ink);font-family:var(--f-num);font-size:16px;text-align:right}
+.wtgt input:focus{outline:2px solid var(--ai);outline-offset:1px}
+.wtgt .hit{color:var(--ai);font-weight:700}
 .parts{display:grid;gap:6px}
 .part{display:grid;grid-template-columns:5.5em 1fr 3.2em;gap:8px;align-items:center;font-size:12.5px}
 .part .track{height:6px;border-radius:3px;background:var(--rule-2);overflow:hidden}
@@ -439,6 +444,7 @@ let cfg = Object.assign({}, JSON.parse(JSON.stringify(DEFAULTS)), store.get("une
 ["cswBy","campBy"].forEach(k=>{ cfg[k] = Object.assign({}, DEFAULTS[k], cfg[k] || {}); });
 if (cfg.cpos === 55) cfg.cpos = 100;   // 以前の「すべて」の値
 let watch = new Set(store.get("uneri.watch", []));
+let wtarget = store.get("uneri.watchTarget", {});   // ★銘柄ごとの目標価格 {コード: 円}
 let DATA = null, view = "chart", popLimit = 50;
 
 /* ---------- formatting ---------- */
@@ -854,7 +860,40 @@ function render(){
       </div>
       ${sparkline(s)}
       <div class="chips">${chipsFor(s)}</div>
+      ${view==="watch" ? targetRow(s) : ""}
     </div>`).join("");
+}
+/* ---------- ★の目標価格 ---------- */
+const numIn = v => { const p = String(v ?? "").normalize("NFKC").replace(/[^\d.]/g, ""); const n = Number(p); return p && Number.isFinite(n) && n > 0 ? n : null; };
+const fmtIn = v => v == null ? "" : Number(v).toLocaleString("ja-JP", {maximumFractionDigits:1});
+function targetGap(s, t){
+  if (!t || s.p == null) return "";
+  return s.p <= t ? `<span class="hit">目標に届いています</span>` : `<span>目標まで <b class="num">${spct(t / s.p - 1)}</b>(あと${yen(s.p >= 100 ? Math.round(s.p - t) : s.p - t)}下)</span>`;
+}
+function targetRow(s){
+  const t = wtarget[s.c];
+  return `<div class="wtgt" data-wtrow="${esc(s.c)}">
+      <label>目標 <input data-wt="${esc(s.c)}" inputmode="decimal" enterkeyhint="done" autocomplete="off" placeholder="未設定" value="${fmtIn(t)}" aria-label="${esc(s.n)}の目標価格(円)"> 円</label>
+      <span data-wtgap="${esc(s.c)}">${targetGap(s, t)}</span>
+    </div>`;
+}
+function setTarget(code, v){
+  const n = numIn(v), had = wtarget[code];
+  if (n === (had ?? null)) return;
+  wtarget = {...wtarget};
+  if (n == null) delete wtarget[code]; else wtarget[code] = n;
+  store.set("uneri.watchTarget", wtarget);
+  if (window.Lots) Lots.saveTargets(wtarget);
+}
+// Firebaseの目標価格を画面に反映する(入力中の欄は書き換えない)
+function applyTargets(t){
+  const same = JSON.stringify(t) === JSON.stringify(wtarget);
+  wtarget = t;
+  store.set("uneri.watchTarget", t);
+  if (same || view !== "watch") return;
+  const a = document.activeElement;
+  if (a && a.dataset && a.dataset.wt) return;
+  render();
 }
 
 /* ---------- 市場の歪み ---------- */
@@ -1266,6 +1305,7 @@ function toggleStar(code){
   store.set("uneri.watch", [...watch]);
   document.querySelectorAll(`[data-star="${CSS.escape(code)}"]`).forEach(b=>b.setAttribute("aria-pressed", watch.has(code)));
   if (window.Lots) Lots.saveWatch([...watch]);
+  if (!watch.has(code) && wtarget[code] != null) setTarget(code, "");
   if (view==="watch") render();
 }
 // Firebaseの★を画面に反映する(他の端末での変更も届く)
@@ -1278,9 +1318,19 @@ function applyWatch(codes){
   if (view==="watch" || (view==="search" && !searchQ.trim())) render();
 }
 $("#list").addEventListener("click", e=>{
+  if (e.target.closest("[data-wtrow]")){ e.stopPropagation(); return; }
   const st = e.target.closest("[data-star]"); if (st){ e.stopPropagation(); toggleStar(st.dataset.star); return; }
   const c = e.target.closest(".card"); if (c) openDetail(c.dataset.c);
 });
+$("#list").addEventListener("change", e=>{
+  const i = e.target.closest("[data-wt]"); if (!i) return;
+  const code = i.dataset.wt;
+  setTarget(code, i.value);
+  i.value = fmtIn(wtarget[code]);
+  const s = DATA && DATA.stocks.find(x=>x.c===code), g = document.querySelector(`[data-wtgap="${CSS.escape(code)}"]`);
+  if (s && g) g.innerHTML = targetGap(s, wtarget[code]);
+});
+$("#list").addEventListener("keydown", e=>{ if (e.target.dataset && e.target.dataset.wt && e.key==="Enter" && !e.isComposing){ e.preventDefault(); e.target.blur(); } });
 $("#list").addEventListener("keydown", e=>{ if((e.key==="Enter"||e.key===" ") && e.target.classList.contains("card")){ e.preventDefault(); openDetail(e.target.dataset.c); }});
 $("#dStar").addEventListener("click", e=>toggleStar(e.currentTarget.dataset.star));
 // 戻る: 履歴の操作に頼らず、その場で詳細を閉じる(Claudeアプリ内などでは履歴を戻せないため)
@@ -1359,6 +1409,8 @@ function boot(data){
     distortion: s => LEVEL[distortion(s).level][0].replace("歪みの可能性 ", ""),
     getWatch: () => [...watch],
     setWatch: applyWatch,
+    getTargets: () => ({...wtarget}),
+    setTargets: applyTargets,
   });
   if (window.Alerts) Alerts.init({ data: () => DATA, openDetail: code => openDetail(code) });
   syncControls(); setView(view); route();

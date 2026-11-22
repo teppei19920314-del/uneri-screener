@@ -40,9 +40,12 @@ def yen(v) -> str:
     return f"{v:,.1f}円" if v < 100 else f"{round(v):,}円"
 
 
-def evaluate(stocks: dict[str, dict], watch: list[str], lots: list[dict]) -> list[dict]:
-    """いま当てはまっている条件。key が同じものは、続いている間は1回だけ通知する。"""
+def evaluate(stocks: dict[str, dict], watch: list[str], lots: list[dict],
+             targets: dict | None = None) -> list[dict]:
+    """いま当てはまっている条件。key が同じものは、続いている間は1回だけ通知する。
+    targets は ★銘柄ごとの目標価格({コード: 円})。"""
     out = []
+    targets = targets or {}
     for code in dict.fromkeys(watch):
         s = stocks.get(code)
         if not s or s.get("p") is None:
@@ -60,6 +63,10 @@ def evaluate(stocks: dict[str, dict], watch: list[str], lots: list[dict]) -> lis
         if s.get("ma") and pos is not None and pos <= 0.30:
             out.append({**base, "key": f"{code}:ma", "kind": "watch",
                         "msg": f"13週線を上回りました(反転サイン・{span}位置 {pos * 100:.0f}%)"})
+        t = targets.get(code)
+        if isinstance(t, (int, float)) and not isinstance(t, bool) and t > 0 and p <= t:
+            out.append({**base, "key": f"{code}:wtarget:{t:g}", "kind": "wtarget",
+                        "msg": f"★の目標 {yen(t)}に届きました(現在 {yen(p)})"})
     for lot in lots:
         code, target = lot.get("code"), lot.get("target")
         if lot.get("done") or not code or not target or target <= 0:
@@ -76,7 +83,10 @@ def evaluate(stocks: dict[str, dict], watch: list[str], lots: list[dict]) -> lis
 def message(new: list[dict], asof: str) -> dict:
     watch = {i["code"] for i in new if i["kind"] == "watch"}
     target = [i for i in new if i["kind"] == "target"]
+    wtarget = {i["code"] for i in new if i["kind"] == "wtarget"}
     parts = []
+    if wtarget:
+        parts.append(f"★{len(wtarget)}銘柄が目標価格に到達")
     if watch:
         parts.append(f"★{len(watch)}銘柄が買い場に")
     if target:
@@ -246,6 +256,7 @@ def run(env=None, session=None, webpush=None) -> str:
     fs = Firestore(cfg["projectId"], token, session)
     base = f"users/{uid}"
     watch = (fs.get(f"{base}/settings/watch") or {}).get("codes") or []
+    targets = (fs.get(f"{base}/settings/watchTargets") or {}).get("t") or {}
     lots = [{**d, "id": i} for i, d in fs.list(f"{base}/lots")]
     state = (fs.get(f"{base}/settings/alertState") or {}).get("keys") or {}
     subs = fs.list(f"{base}/push")
@@ -253,7 +264,7 @@ def run(env=None, session=None, webpush=None) -> str:
         # 端末がないうちは「通知済み」にしない(オンにした後で、いま当てはまっているものも届くように)
         return "通知をオンにした端末がないため、判定だけで終わりました"
 
-    now = evaluate(stocks, watch, lots)
+    now = evaluate(stocks, watch, lots, targets)
     new = [i for i in now if i["key"] not in state]
     fs.set(f"{base}/settings/alertState", {"keys": {i["key"]: state.get(i["key"], asof) for i in now}})
     if not new:

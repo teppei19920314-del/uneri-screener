@@ -7,7 +7,7 @@
   const CODE = { test: c => CODE_RE.test(c) || (!!api && !!api.data() && !!api.data().demo && /^[A-Z][0-9]{3}$/.test(c)) };  // 架空データのコードは英字始まり
   const UNIT = 100;
   const state = { status: "idle", email: "", lots: [], budget: 0, error: "", armed: null, focus: null, loaded: false, alerts: [] };
-  let api = null, backend = null, pendingPlan = false, lastHeld = "", watchSynced = false;
+  let api = null, backend = null, pendingPlan = false, lastHeld = "", watchSynced = false, targetsSynced = false;
 
   const $ = id => document.getElementById(id);
   const esc = s => String(s ?? "").replace(/[&<>"']/g, c => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;", "'": "&#39;" }[c]));
@@ -49,6 +49,7 @@
         fs.onSnapshot(fs.collection(db, base, "lots"), s => onLots(s.docs.map(d => ({ ...d.data(), id: d.id }))), onDataError),
         fs.onSnapshot(fs.doc(db, base, "settings", "plan"), d => onBudget(d.exists() ? d.data().budget || 0 : 0), onDataError),
         fs.onSnapshot(fs.doc(db, base, "settings", "watch"), d => onWatch(d.exists() ? d.data().codes || [] : []), onDataError),
+        fs.onSnapshot(fs.doc(db, base, "settings", "watchTargets"), d => onTargets(d.exists() ? d.data().t || {} : {}), onDataError),
         fs.onSnapshot(fs.query(fs.collection(db, base, "alerts"), fs.orderBy("date", "desc"), fs.limit(30)),
           s => onAlerts(s.docs.map(d => d.data())), () => onAlerts([])),
       ];
@@ -65,15 +66,16 @@
       remove: id => fs.deleteDoc(ref(id)),
       setBudget: v => fs.setDoc(fs.doc(db, `users/${uid}/settings/plan`), { budget: v }),
       setWatch: codes => fs.setDoc(fs.doc(db, `users/${uid}/settings/watch`), { codes }),
+      setTargets: t => fs.setDoc(fs.doc(db, `users/${uid}/settings/watchTargets`), { t }),
       savePush: (id, data) => fs.setDoc(fs.doc(db, `users/${uid}/push`, id), data),
       removePush: id => fs.deleteDoc(fs.doc(db, `users/${uid}/push`, id)),
     };
   }
   function demoBackend() {
     const KEY = "uneri.demoLots";
-    let d = { lots: [], budget: 0, watch: [] };
+    let d = { lots: [], budget: 0, watch: [], targets: {} };
     try { d = JSON.parse(localStorage.getItem(KEY)) || d; } catch (e) { /* 空で始める */ }
-    const push = () => { try { localStorage.setItem(KEY, JSON.stringify(d)); } catch (e) { /* デモなので無視 */ } setTimeout(() => { onLots(d.lots.map(x => ({ ...x }))); onBudget(d.budget); onWatch(d.watch || []); onAlerts(store.alerts()); }, 0); };
+    const push = () => { try { localStorage.setItem(KEY, JSON.stringify(d)); } catch (e) { /* デモなので無視 */ } setTimeout(() => { onLots(d.lots.map(x => ({ ...x }))); onBudget(d.budget); onWatch(d.watch || []); onTargets(d.targets || {}); onAlerts(store.alerts()); }, 0); };
     const store = { alerts: () => { try { return JSON.parse(localStorage.getItem("uneri.demoAlerts")) || []; } catch (e) { return []; } } };
     let n = Date.now();
     setTimeout(() => { onUser("デモ(この端末だけに保存)"); push(); }, 0);
@@ -86,6 +88,7 @@
       remove: async id => { d.lots = d.lots.filter(l => l.id !== id); push(); },
       setBudget: async v => { d.budget = v; push(); },
       setWatch: async codes => { d.watch = codes; push(); },
+      setTargets: async t => { d.targets = t; push(); },
       savePush: async (id, data) => { d.push = { ...(d.push || {}), [id]: data }; push(); },
       removePush: async id => { if (d.push) delete d.push[id]; push(); },
     };
@@ -95,7 +98,7 @@
   function onUser(email) {
     state.email = email || ""; state.error = "";
     state.status = email === null ? "signedout" : "ready";
-    if (email === null) { state.lots = []; state.budget = 0; state.loaded = false; watchSynced = false; state.alerts = []; }
+    if (email === null) { state.lots = []; state.budget = 0; state.loaded = false; watchSynced = false; targetsSynced = false; state.alerts = []; }
     refresh();
   }
   function onLots(lots) { state.lots = lots; state.loaded = true; refresh(); }
@@ -111,6 +114,20 @@
       return;
     }
     api.setWatch(remote);
+  }
+  // ★の目標価格: ★と同じく、ログイン直後だけ端末の分とまとめる(同じ銘柄はFirebase側を優先)
+  function onTargets(remote) {
+    const clean = {};
+    Object.entries(remote || {}).forEach(([c, v]) => { if (typeof v === "number" && v > 0) clean[c] = v; });
+    if (!targetsSynced) {
+      targetsSynced = true;
+      const local = api.getTargets ? api.getTargets() : {};
+      const merged = { ...local, ...clean };
+      if (api.setTargets) api.setTargets(merged);
+      if (Object.keys(merged).length !== Object.keys(clean).length) backend.setTargets(merged).catch(failed);
+      return;
+    }
+    if (api.setTargets) api.setTargets(clean);
   }
   function onDataError(e) {
     state.status = "error";
@@ -448,6 +465,7 @@
     removePush: id => backend.removePush(id),
     toast,
     saveWatch(codes) { if (backend && watchSynced) backend.setWatch(codes).catch(failed); },
+    saveTargets(t) { if (backend && targetsSynced) backend.setTargets(t).catch(failed); },
     badge(code) {
       if (state.status !== "ready") return "";
       const mine = state.lots.filter(l => l.code === code);
