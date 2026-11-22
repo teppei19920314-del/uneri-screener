@@ -271,6 +271,20 @@ table.lottotal th,table.lottotal td{text-align:center}
 .lock input[type=password]{width:100%;padding:10px 12px;border:1px solid var(--rule);border-radius:8px;background:var(--paper);font-size:16px}
 .lock .err{color:var(--rise);font-size:13px;min-height:1.2em;margin:0}
 .lock label.chk{display:flex;gap:8px;align-items:center;font-size:13px;color:var(--ink-2)}
+/* 画面外のカードは描画を後回しにする(スクロールを軽く) */
+.list>.card{content-visibility:auto;contain-intrinsic-size:auto 260px}
+.more-sentinel{height:1px}
+/* パソコン(広い画面) */
+@media (min-width:1100px){
+  :root{--sw:min(760px,46vw)}
+  .wrap{max-width:1320px}
+  .list{grid-template-columns:repeat(auto-fill,minmax(460px,1fr));align-items:start}
+  .list>:not(.card){grid-column:1/-1}
+  #lotsView,#settingsView{max-width:960px}
+  .sheet{left:auto;width:var(--sw);border-left:1px solid var(--rule);box-shadow:-12px 0 32px rgba(0,0,0,.14)}
+  body.split{padding-right:var(--sw)}
+  .sheet .bar .wrap,#dBody{max-width:none}
+}
 @media (prefers-reduced-motion: no-preference){.card{transition:border-color .15s}.card:hover{border-color:var(--ai)}}
 </style>
 <link rel="stylesheet" href="theme.css">
@@ -469,6 +483,8 @@ let watch = new Set(store.get("uneri.watch", []));
 let wtarget = store.get("uneri.watchTarget", {});
 let moreOpen = {};   // 詳細画面の「くわしい数字」を開いたままにする(銘柄を移っても)   // ★銘柄ごとの目標価格 {コード: 円}
 let DATA = null, view = "chart", popLimit = 50;
+const WIDE = matchMedia("(min-width: 1100px)");   // パソコンの広い画面: 一覧を複数列、詳細は右側に並べる
+WIDE.addEventListener && WIDE.addEventListener("change", () => { if (!$("#sheet").hidden) document.body.style.overflow = WIDE.matches ? "" : "hidden"; });
 
 /* ---------- formatting ---------- */
 const pct = (v, d=0) => v == null ? "–" : (v*100).toFixed(d) + "%";
@@ -576,6 +592,26 @@ const SORTS = {
   eq:(a,b)=>(b.eq??-1)-(a.eq??-1), mr:(a,b)=>(a.mr??1e9)-(b.mr??1e9),
   stc:(a,b)=>(b.stc??-1)-(a.stc??-1), pbr:(a,b)=>(a.pbr??1e9)-(b.pbr??1e9)
 };
+
+/* ---------- 一覧は最初の数十件だけ描き、残りはスクロールに合わせて足す(iPhoneで軽くする) ---------- */
+let paintObs = null;
+function paintList(list, head, items, card, step = 24){
+  if (paintObs){ paintObs.disconnect(); paintObs = null; }
+  let n = Math.min(step, items.length);
+  const chunk = (a, b) => items.slice(a, b).map((s, k) => card(s, a + k)).join("");
+  list.innerHTML = head + chunk(0, n) + (n < items.length ? `<div class="more-sentinel" aria-hidden="true"></div>` : "");
+  if (n >= items.length) return;
+  const sen = list.querySelector(".more-sentinel");
+  if (!("IntersectionObserver" in window)){ sen.insertAdjacentHTML("beforebegin", chunk(n, items.length)); sen.remove(); return; }
+  paintObs = new IntersectionObserver(es => {
+    if (!es.some(e => e.isIntersecting)) return;
+    const m = Math.min(n + step, items.length);
+    sen.insertAdjacentHTML("beforebegin", chunk(n, m));
+    n = m;
+    if (n >= items.length){ paintObs.disconnect(); paintObs = null; sen.remove(); }
+  }, {rootMargin: "1200px 0px"});
+  paintObs.observe(sen);
+}
 
 /* ---------- charts ---------- */
 function sparkline(s){
@@ -710,8 +746,8 @@ function renderChartList(){
     list.innerHTML = `<div class="empty">条件に合う銘柄がありません。谷の回数や値幅をゆるめてください。</div>`;
     return;
   }
-  list.innerHTML = `<div class="legend"><span><i style="background:var(--ai)"></i>${cfg.span <= 2 ? "週足" : "月足"}終値(対数目盛)</span><span><i style="background:var(--fall)"></i>谷</span><span><i style="background:var(--rise)"></i>山・現在値</span></div>` +
-    rows.slice(0, 200).map((s, i)=>`
+  paintList(list, `<div class="legend"><span><i style="background:var(--ai)"></i>${cfg.span <= 2 ? "週足" : "月足"}終値(対数目盛)</span><span><i style="background:var(--fall)"></i>谷</span><span><i style="background:var(--rise)"></i>山・現在値</span></div>`,
+    rows.slice(0, 200), (s, i)=>`
     <div class="card ccard" role="button" tabindex="0" data-c="${esc(s.c)}">
       <div class="head">
         <span class="rank">${i+1}</span>
@@ -731,7 +767,7 @@ function renderChartList(){
         ${earnBrief(s)}
       </div>
       ${priceChart(s, true)}
-    </div>`).join("");
+    </div>`, 12);
 }
 
 /* ---------- 人気株(下落率順) ---------- */
@@ -847,6 +883,7 @@ $("#searchInput").addEventListener("keydown", e => { if (e.key === "Enter" && !e
 
 function render(){
   if (!DATA) return;
+  if (paintObs){ paintObs.disconnect(); paintObs = null; }
   const srch = view === "search", lots = view === "lots", alerts = view === "alerts", own = lots || alerts;
   $("#searchBar").hidden = !srch;
   $("#spanRow").hidden = srch || own;
@@ -874,7 +911,7 @@ function render(){
     list.innerHTML = `<div class="empty">${view==="watch" ? "★をつけた銘柄がここに並びます。" : "条件に合う銘柄がありません。「条件」から自己資本比率やレンジ位置をゆるめてください。"}</div>`;
     return;
   }
-  list.innerHTML = rows.slice(0, 300).map(s=>`
+  paintList(list, "", rows.slice(0, 300), s=>`
     <div class="card" role="button" tabindex="0" data-c="${esc(s.c)}">
       <div class="head">
         <div class="id">
@@ -887,7 +924,7 @@ function render(){
       ${sparkline(s)}
       <div class="chips">${chipsFor(s, view==="watch")}</div>
       ${view==="watch" ? targetRow(s) : ""}
-    </div>`).join("");
+    </div>`);
 }
 /* ---------- 底値の目安 ----------
    10年(上場来)のうねりから機械的に出す。
@@ -1338,10 +1375,12 @@ function openDetail(code, push=true){
   $("#dBody").innerHTML = html;
   $("#sheet").hidden = false;
   $("#sheet").scrollTop = 0;
-  document.body.style.overflow = "hidden";
+  document.body.classList.add("split");
+  if (!WIDE.matches) document.body.style.overflow = "hidden";
 }
 function closeDetail(){
   $("#sheet").hidden = true;
+  document.body.classList.remove("split");
   document.body.style.overflow = "";
 }
 
@@ -1369,7 +1408,12 @@ function syncControls(){
     b.setAttribute("aria-pressed", Number(b.dataset.v) === Number(cur));
   }));
 }
-function changed(){ store.set("uneri.cfg", cfg); syncControls(); render(); }
+let changeRaf = 0;
+function changed(){
+  store.set("uneri.cfg", cfg);
+  if (changeRaf) return;   // スライダーを動かしている間は、1コマに1回だけ描き直す
+  changeRaf = requestAnimationFrame(() => { changeRaf = 0; syncControls(); render(); });
+}
 // 画面の色と明るさ(theme.js)
 function syncTheme(){
   if (!window.UneriTheme) return;
