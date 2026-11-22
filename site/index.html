@@ -166,6 +166,15 @@ dl{margin:0}
 .wbot .sub{display:block;line-height:1.35}
 .wbot.warn{background:var(--warn-bg);border-color:transparent}
 .wbot.warn .lbl,.wbot.warn b{color:var(--warn)}
+#dBody .sec{scroll-margin-top:64px}
+.wjudge{display:grid;grid-template-columns:minmax(0,1fr) minmax(0,1fr);gap:8px;margin-top:8px}
+.wj{all:unset;box-sizing:border-box;display:grid;align-content:start;gap:4px;border:1px solid var(--rule);border-radius:10px;padding:8px 10px;min-width:0;cursor:pointer;font-size:12.5px;color:var(--ink-2);line-height:1.4}
+.wj:focus-visible{outline:2px solid var(--ai);outline-offset:1px}
+.wj .lbl{display:flex;justify-content:space-between;font-size:11.5px;font-weight:700;letter-spacing:.03em;color:var(--ink-3)}
+.wj .lbl::after{content:"›";font-size:14px;line-height:1}
+.wj .verdict{font-size:13px;padding:3px 10px;justify-self:start}
+.wj b{font-size:14px;color:var(--ink)}
+.wj .tagline .chip{font-size:11.5px;padding:2px 8px}
 .wset{border:1px solid var(--rule);border-radius:10px;padding:8px 10px;min-width:0;display:grid;align-content:start;gap:4px}
 .wset label{display:flex;align-items:center;gap:6px}
 .wset input{flex:1;min-width:0;width:100%;padding:5px 8px;border:1px solid var(--rule);border-radius:8px;background:var(--paper);color:var(--ink);font-family:var(--f-num);font-size:16px;text-align:right}
@@ -963,9 +972,34 @@ function bottomBox(s){
   if (b.state === "below") return `<div class="wbot warn"><span class="lbl">底値の目安</span><b>–</b><span class="sub">過去の下げ幅を超えて下落中(山から ${spct(b.cur, 0)})${b.nextLow ? `・下の谷 ${yen(b.nextLow)}` : ""}</span></div>`;
   return `<div class="wbot"><span class="lbl">底値の目安</span><b>${yen(b.mid)}</b><span class="sub">${yen(b.lo)}〜${yen(b.hi)}<br>現在から ${spct(b.mid / s0.p - 1, 0)}</span></div>`;
 }
+/* ---------- ウォッチ: 歪みとセクターのまとめ(タップで詳細の該当欄へ) ---------- */
+function distBrief(s){
+  const r = distortion(s), cnt = list => { const k = list.filter(x => x[0] != null); return k.length ? `${k.filter(x => x[0]).length}/${k.length}` : "–"; };
+  const short = {hi: "高い", mid: "中くらい", lo: "低い", na: "判定不可"}[r.level];
+  return `<button type="button" class="wj" data-jump="市場の歪み"><span class="lbl">市場の歪み</span>
+    <span class="verdict v-${r.level}">${r.level === "na" ? short : "可能性 " + short}</span>
+    <span>環境要因 ✓${cnt(r.env)}<br>業績の安定 ✓${cnt(r.biz)}</span></button>`;
+}
+function sectorBrief(s){
+  const rot = DATA.rot || {}, mk = rot.market, macro = rot.macro;
+  const sec = mk && mk.sectors.find(x => secKey(x.name) === secKey(s.s));
+  if (!sec) return `<button type="button" class="wj" data-jump="セクターの位置づけ"><span class="lbl">セクター</span><b>${esc(s.s)}</b><span>データなし</span></button>`;
+  const base = macro ? macro.phase : mk.lead, nextPh = base ? PHASE_ORDER[(PHASE_ORDER.indexOf(base) + 1) % 4] : null;
+  const tags = [];
+  if (sec.phase && sec.phase === base) tags.push(["いまの局面", "g"]);
+  if (sec.phase && sec.phase === nextPh) tags.push(["次に来やすい", "g"]);
+  if (sec.phase && sec.phase === mk.lead) tags.push(["相場の主役", "w"]);
+  if (sec.phase && sec.phase === mk.rising) tags.push(["勢いあり", "w"]);
+  const ranked = mk.sectors.filter(x => x.x13 != null).sort((a, b) => b.x13 - a.x13), rank = ranked.findIndex(x => x.name === sec.name) + 1;
+  return `<button type="button" class="wj" data-jump="セクターの位置づけ"><span class="lbl">セクター</span>
+    <b>${esc(s.s)}${sec.phase ? ` · ${esc(sec.phase)}` : ""}</b>
+    ${tags.length ? `<span class="tagline">${tags.map(([x, c]) => `<span class="chip ${c}">${x}</span>`).join("")}</span>` : ""}
+    <span>${rank ? `3か月の強さ ${ranked.length}業種中 ${rank}位` : ""}${sec.r13 != null ? `(業種 ${spct(sec.r13, 0)})` : ""}</span></button>`;
+}
 function targetRow(s){
   const t = wtarget[s.c];
-  return `<div class="wtgt" data-wtrow="${esc(s.c)}">
+  return `<div class="wjudge">${distBrief(s)}${sectorBrief(s)}</div>
+    <div class="wtgt" data-wtrow="${esc(s.c)}">
       ${bottomBox(s)}
       <div class="wset">
         <span class="lbl">目標</span>
@@ -1431,6 +1465,14 @@ function applyWatch(codes){
 }
 $("#list").addEventListener("click", e=>{
   if (e.target.closest("[data-wtrow]")){ e.stopPropagation(); return; }
+  const j = e.target.closest("[data-jump]");
+  if (j){
+    e.stopPropagation();
+    openDetail(j.closest(".card").dataset.c);
+    const h = [...document.querySelectorAll("#dBody .sec h3")].find(x => x.textContent.startsWith(j.dataset.jump));
+    if (h) requestAnimationFrame(() => h.closest(".sec").scrollIntoView({block: "start"}));
+    return;
+  }
   const st = e.target.closest("[data-star]"); if (st){ e.stopPropagation(); toggleStar(st.dataset.star); return; }
   const c = e.target.closest(".card"); if (c) openDetail(c.dataset.c);
 });
