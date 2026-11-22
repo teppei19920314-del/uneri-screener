@@ -406,8 +406,10 @@ table.lottotal th,table.lottotal td{text-align:center}
     <div class="crow"><span class="clab">基準</span><div class="seg" data-k="pbase">
       <button class="chipbtn" data-v="0">1年の高値から</button><button class="chipbtn" data-v="13">3か月</button>
       <button class="chipbtn" data-v="26">半年</button><button class="chipbtn" data-v="52">1年</button></div></div>
+    <div class="crow"><span class="clab">歪み</span><div class="seg" data-m="pdlv">
+      <button class="chipbtn" data-v="hi">高い</button><button class="chipbtn" data-v="mid">中くらい</button><button class="chipbtn" data-v="lo">低い</button></div></div>
     <div class="crow"><span class="clab">財務</span><div class="seg"><button class="chipbtn" id="pSafe" aria-pressed="false">潰れにくい会社だけ</button></div></div>
-    <p class="note" style="margin:0">対象を選ばなければ全銘柄を表示します(選んだボタンをもう一度押すと解除)。人気・有名株はTOPIXの規模区分で選んでいます。Core30は日本を代表する30社、TOPIX100はそれに大型株70社を加えたもの、TOPIX500はさらに中型の主要株400社を加えたものです。「潰れにくい会社だけ」は自己資本比率40%以上で、赤字予想ではない会社です。</p>
+    <p class="note" style="margin:0">対象を選ばなければ全銘柄を表示します(選んだボタンをもう一度押すと解除)。人気・有名株はTOPIXの規模区分で選んでいます。Core30は日本を代表する30社、TOPIX100はそれに大型株70社を加えたもの、TOPIX500はさらに中型の主要株400社を加えたものです。「潰れにくい会社だけ」は自己資本比率40%以上で、赤字予想ではない会社です。歪み(会社のせいではなく環境のせいで下がっている可能性)は複数選べ、何も選ばなければすべて表示します。</p>
   </div>
   <div class="cbar" id="chartBar">
     <div class="crow"><span class="clab"><span class="spanY">10</span>年位置</span><div class="seg" data-k="cpos">
@@ -418,7 +420,9 @@ table.lottotal th,table.lottotal td{text-align:center}
     <div class="crow"><span class="clab">株価</span><div class="seg" data-k="cpx">
       <button class="chipbtn" data-v="0">制限なし</button><button class="chipbtn" data-v="500">500円以下</button>
       <button class="chipbtn" data-v="1000">1,000円以下</button><button class="chipbtn" data-v="3000">3,000円以下</button></div></div>
-    <p class="note" style="margin:0"><span class="spanY">10</span>年の安値に近い順に並べています。「谷」は株価が25%以上戻した底のことで、回数が多いほど上げ下げを繰り返す「うねり」型です。</p>
+    <div class="crow"><span class="clab">歪み</span><div class="seg" data-m="cdlv">
+      <button class="chipbtn" data-v="hi">高い</button><button class="chipbtn" data-v="mid">中くらい</button><button class="chipbtn" data-v="lo">低い</button></div></div>
+    <p class="note" style="margin:0"><span class="spanY">10</span>年の安値に近い順に並べています。「谷」は株価が25%以上戻した底のことで、回数が多いほど上げ下げを繰り返す「うねり」型です。歪みは複数選べ、何も選ばなければすべて表示します。</p>
   </div>
   <div class="list" id="list"></div>
   <div id="lotsView" hidden></div>
@@ -471,13 +475,14 @@ table.lottotal th,table.lottotal td{text-align:center}
 (() => {
 "use strict";
 const $ = s => document.querySelector(s);
-const DEFAULTS = {eq:50, pos:25, tr:-5, tv:10, mr:0, short:"off", mkt:["プライム","スタンダード","グロース"], sort:"score", rev:false, cpos:30, cswBy:{10:3,5:2,2:1,1:0}, campBy:{10:0.5,5:0.5,2:0.3,1:0}, cpx:0, span:10, ptier:0, pbase:0, psafe:false, psort:0};
+const DEFAULTS = {eq:50, pos:25, tr:-5, tv:10, mr:0, short:"off", mkt:["プライム","スタンダード","グロース"], sort:"score", rev:false, cpos:30, cswBy:{10:3,5:2,2:1,1:0}, campBy:{10:0.5,5:0.5,2:0.3,1:0}, cpx:0, span:10, ptier:0, pbase:0, psafe:false, psort:0, cdlv:[], pdlv:[]};
 const store = {
   get(k, d){ try{ const v = localStorage.getItem(k); return v ? JSON.parse(v) : d; }catch(e){ return d; } },
   set(k, v){ try{ localStorage.setItem(k, JSON.stringify(v)); }catch(e){} }
 };
 let cfg = Object.assign({}, JSON.parse(JSON.stringify(DEFAULTS)), store.get("uneri.cfg", {}));
 ["cswBy","campBy"].forEach(k=>{ cfg[k] = Object.assign({}, DEFAULTS[k], cfg[k] || {}); });
+["cdlv","pdlv"].forEach(k=>{ if (!Array.isArray(cfg[k])) cfg[k] = []; });
 if (cfg.cpos === 55) cfg.cpos = 100;   // 以前の「すべて」の値
 let watch = new Set(store.get("uneri.watch", []));
 let wtarget = store.get("uneri.watchTarget", {});
@@ -729,6 +734,7 @@ function passesChart(s){
   if ((s.sw || 0) < cfg.cswBy[cfg.span]) return false;
   if (cfg.campBy[cfg.span] > 0 && (s.amp || 0) < cfg.campBy[cfg.span]) return false;
   if (cfg.cpx > 0 && s.p > cfg.cpx) return false;
+  if (cfg.cdlv.length && !cfg.cdlv.includes(dlv(s))) return false;
   if (s.tr != null && s.tr * 100 < cfg.tr) return false;
   if (cfg.tv > 0 && (s.tv == null || s.tv < cfg.tv)) return false;
   if (cfg.mr > 0 && (s.mr == null || s.mr > cfg.mr)) return false;
@@ -764,6 +770,7 @@ function renderChartList(){
         <span>信用倍率 <b>${s.mr!=null ? fx(s.mr,2)+"倍" : s.ml!=null ? "売り残なし" : "–"}</b></span>
         <span>出来高 <b>${man(s.vo)}</b>${s.vd?`<small class="vd">(${esc(s.vd.slice(5).replace("-","/"))})</small>`:""}</span>
         ${mcStat(s)}
+        ${distStat(s)}
         ${earnBrief(s)}
       </div>
       ${priceChart(s, true)}
@@ -782,6 +789,7 @@ function passesPop(s){
   if (cfg.ptier === 9){ if ((s.mc ?? 0) < 10000) return false; }
   else if (cfg.ptier && (!s.sc || s.sc > cfg.ptier)) return false;   // 0 = 全銘柄
   if (!cfg.mkt.includes(s.m)) return false;
+  if (cfg.pdlv.length && !cfg.pdlv.includes(dlv(s))) return false;
   if (cfg.psafe && (s.eq == null || s.eq < 0.4 || s.loss || (s.dist && s.dist.oyl))) return false;
   return dropOf(s) != null;
 }
@@ -818,6 +826,7 @@ function renderPop(){
         <span>年間配当(予) <b>${divYen(s.dv)}</b></span>
         <span>信用倍率 <b>${s.mr!=null ? fx(s.mr,2)+"倍" : s.ml!=null ? "売り残なし" : "–"}</b></span>
         <span>出来高 <b>${man(s.vo)}</b>${s.vd?`<small class="vd">(${esc(s.vd.slice(5).replace("-","/"))})</small>`:""}</span>
+        ${distStat(s)}
         ${earnBrief(s)}
       </div>
       ${priceChart(s, true)}
@@ -870,6 +879,7 @@ function searchCard(s){
         </div>
         <button class="star" data-star="${esc(s.c)}" aria-pressed="${watch.has(s.c)}" aria-label="ウォッチ">★</button>
       </div>
+      <div class="cstats"><span>10年位置 <b>${pct(s.pos)}</b></span>${distStat(s)}</div>
       ${sparkline(s)}
     </div>`;
 }
@@ -1006,6 +1016,16 @@ function bottomBox(s){
   if (b.state === "below") return `<div class="wbot warn"><span class="lbl">底値の目安</span><b>–</b><span class="sub">過去の下げ幅を超えて下落中(山から ${spct(b.cur, 0)})${b.nextLow ? `・下の谷 ${yen(b.nextLow)}` : ""}</span></div>`;
   return `<div class="wbot"><span class="lbl">底値の目安</span><b>${yen(b.mid)}</b><span class="sub">${yen(b.lo)}〜${yen(b.hi)}<br>現在から ${spct(b.mid / s0.p - 1, 0)}</span></div>`;
 }
+// 歪みの判定は一覧の絞り込みでも使うので、銘柄ごとに覚えておく(データが変わったら作り直す)
+let dlvCache = new Map(), dlvData = null;
+function dlv(s){
+  if (dlvData !== DATA){ dlvCache = new Map(); dlvData = DATA; }
+  let v = dlvCache.get(s.c);
+  if (v == null){ v = distortion(s).level; dlvCache.set(s.c, v); }
+  return v;
+}
+const DLV_TXT = {hi: "高い", mid: "中くらい", lo: "低い", na: "判定不可"};
+const distStat = s => `<span>歪み <b>${DLV_TXT[dlv(s)]}</b></span>`;
 /* ---------- ウォッチ: 歪みとセクターのまとめ(タップで詳細の該当欄へ) ---------- */
 function distChip(s){
   const lv = distortion(s).level;
@@ -1403,7 +1423,9 @@ function syncControls(){
   document.querySelectorAll("#popBar .seg[data-k]").forEach(g=>g.querySelectorAll(".chipbtn").forEach(b=>
     b.setAttribute("aria-pressed", Number(b.dataset.v) === Number(cfg[g.dataset.k]))));
   $("#pSafe").setAttribute("aria-pressed", cfg.psafe);
-  document.querySelectorAll("#chartBar .seg").forEach(g=>g.querySelectorAll(".chipbtn").forEach(b=>{
+  document.querySelectorAll(".seg[data-m]").forEach(g=>g.querySelectorAll(".chipbtn").forEach(b=>
+    b.setAttribute("aria-pressed", cfg[g.dataset.m].includes(b.dataset.v))));
+  document.querySelectorAll("#chartBar .seg:not([data-m])").forEach(g=>g.querySelectorAll(".chipbtn").forEach(b=>{
     const cur = g.dataset.g ? cfg[g.dataset.g][cfg.span] : cfg[g.dataset.k];
     b.setAttribute("aria-pressed", Number(b.dataset.v) === Number(cur));
   }));
@@ -1454,6 +1476,7 @@ $("#bellBtn").addEventListener("click", ()=>{ if (TABS[view]) store.set("uneri.l
 $("#popBar").addEventListener("click", e=>{
   popLimit = 50;
   if (e.target.closest("#pSafe")){ cfg.psafe = !cfg.psafe; return changed(); }
+  if (toggleMulti(e)) return;
   const b = e.target.closest(".chipbtn"), g = b && b.closest(".seg[data-k]"); if (!g) return;
   const v = Number(b.dataset.v);
   // 対象は、選択中のボタンをもう一度押すと解除(全銘柄)。下落率の基準は必ずどれか1つ
@@ -1471,7 +1494,15 @@ $("#spanSeg").addEventListener("click", e=>{
   cfg.span = Number(b.dataset.v); changed();
   if (!$("#sheet").hidden && location.hash.startsWith("#c")) openDetail(location.hash.slice(2), false);
 });
+// 歪みの選択: 複数選べるボタン(押すたびに入れたり外したり)
+function toggleMulti(e){
+  const b = e.target.closest(".chipbtn"), g = b && b.closest(".seg[data-m]"); if (!g) return false;
+  const k = g.dataset.m, v = b.dataset.v;
+  cfg[k] = cfg[k].includes(v) ? cfg[k].filter(x => x !== v) : cfg[k].concat(v);
+  changed(); return true;
+}
 $("#chartBar").addEventListener("click", e=>{
+  if (toggleMulti(e)) return;
   const b = e.target.closest(".chipbtn"); if (!b) return;
   const g = b.closest(".seg");
   if (g.dataset.g) cfg[g.dataset.g][cfg.span] = Number(b.dataset.v); else cfg[g.dataset.k] = Number(b.dataset.v);
