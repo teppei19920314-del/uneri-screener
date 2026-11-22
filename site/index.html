@@ -167,14 +167,8 @@ dl{margin:0}
 .wbot.warn{background:var(--warn-bg);border-color:transparent}
 .wbot.warn .lbl,.wbot.warn b{color:var(--warn)}
 #dBody .sec{scroll-margin-top:64px}
-.wjudge{display:grid;grid-template-columns:minmax(0,1fr) minmax(0,1fr);gap:8px;margin-top:8px}
-.wj{all:unset;box-sizing:border-box;display:grid;align-content:start;gap:4px;border:1px solid var(--rule);border-radius:10px;padding:8px 10px;min-width:0;cursor:pointer;font-size:12.5px;color:var(--ink-2);line-height:1.4}
-.wj:focus-visible{outline:2px solid var(--ai);outline-offset:1px}
-.wj .lbl{display:flex;justify-content:space-between;font-size:11.5px;font-weight:700;letter-spacing:.03em;color:var(--ink-3)}
-.wj .lbl::after{content:"›";font-size:14px;line-height:1}
-.wj .verdict{font-size:13px;padding:3px 10px;justify-self:start}
-.wj b{font-size:14px;color:var(--ink)}
-.wj .tagline .chip{font-size:11.5px;padding:2px 8px}
+button.chip.jump{appearance:none;-webkit-appearance:none;border:0;font-family:inherit;cursor:pointer}
+button.chip.jump:focus-visible{outline:2px solid var(--ai);outline-offset:1px}
 .wset{border:1px solid var(--rule);border-radius:10px;padding:8px 10px;min-width:0;display:grid;align-content:start;gap:4px}
 .wset label{display:flex;align-items:center;gap:6px}
 .wset input{flex:1;min-width:0;width:100%;padding:5px 8px;border:1px solid var(--rule);border-radius:8px;background:var(--paper);color:var(--ink);font-family:var(--f-num);font-size:16px;text-align:right}
@@ -674,12 +668,14 @@ function lineChart(series, opts){
 }
 
 /* ---------- list ---------- */
-function chipsFor(s){
+function chipsFor(s, watchMode=false){
   const out = [];
   if (s.eq != null) out.push([`自己資本 ${pct(s.eq)}`, s.eq>=0.6?"g":s.eq<0.3?"b":""]);
-  out.push([`${Y()}位置 ${pct(s.pos)}`, s.pos<=0.15?"g":""]);
-  if (s.ph==="up" && s.leg!=null) out.push([`谷から ${spct(s.leg,0)}`, s.leg<=0.2?"g":""]);
-  else if (s.ph==="down" && s.leg!=null) out.push([`山から ${spct(s.leg,0)}`, ""]);
+  if (!watchMode){
+    out.push([`${Y()}位置 ${pct(s.pos)}`, s.pos<=0.15?"g":""]);
+    if (s.ph==="up" && s.leg!=null) out.push([`谷から ${spct(s.leg,0)}`, s.leg<=0.2?"g":""]);
+    else if (s.ph==="down" && s.leg!=null) out.push([`山から ${spct(s.leg,0)}`, ""]);
+  }
   if (s.ml != null) out.push([s.mr!=null?`信用倍率 ${fx(s.mr,1)}倍`:"売り残なし", s.mr!=null&&s.mr<=1?"g":s.mr==null||s.mr>8?"w":""]);
   if (s.st) out.push([`空売り ${pct(s.st,1)}${s.stc>0.0005?" ↑":s.stc<-0.0005?" ↓":""}`, s.stc>0.0005?"w":""]);
   if (s.mc != null) out.push([`時価総額 ${oku(s.mc)}${s.dh != null ? `(高値から ${okuS(mcDrop(s, 0))})` : ""}`, ""]);
@@ -688,7 +684,8 @@ function chipsFor(s){
     if (op && op[2] != null) out.push([`決算(${s.earn.pt}) 営業益 ${spct(op[2],0)}`, op[2] < -0.1 ? "b" : ""]);
   }
   if (s.loss) out.push(["予想赤字","b"]);
-  return out.map(([t,c])=>`<span class="chip ${c}">${esc(t)}</span>`).join("");
+  const html = out.map(([t,c])=>`<span class="chip ${c}">${esc(t)}</span>`).join("");
+  return watchMode ? html + distChip(s) + sectorChip(s) : html;
 }
 
 function passesChart(s){
@@ -888,7 +885,7 @@ function render(){
         <div class="score"><b>${s._sc.score}</b><span class="bar"><i style="width:${s._sc.score}%"></i></span></div>
       </div>
       ${sparkline(s)}
-      <div class="chips">${chipsFor(s)}</div>
+      <div class="chips">${chipsFor(s, view==="watch")}</div>
       ${view==="watch" ? targetRow(s) : ""}
     </div>`).join("");
 }
@@ -973,33 +970,24 @@ function bottomBox(s){
   return `<div class="wbot"><span class="lbl">底値の目安</span><b>${yen(b.mid)}</b><span class="sub">${yen(b.lo)}〜${yen(b.hi)}<br>現在から ${spct(b.mid / s0.p - 1, 0)}</span></div>`;
 }
 /* ---------- ウォッチ: 歪みとセクターのまとめ(タップで詳細の該当欄へ) ---------- */
-function distBrief(s){
-  const r = distortion(s), cnt = list => { const k = list.filter(x => x[0] != null); return k.length ? `${k.filter(x => x[0]).length}/${k.length}` : "–"; };
-  const short = {hi: "高い", mid: "中くらい", lo: "低い", na: "判定不可"}[r.level];
-  return `<button type="button" class="wj" data-jump="市場の歪み"><span class="lbl">市場の歪み</span>
-    <span class="verdict v-${r.level}">${r.level === "na" ? short : "可能性 " + short}</span>
-    <span>環境要因 ✓${cnt(r.env)}<br>業績の安定 ✓${cnt(r.biz)}</span></button>`;
+function distChip(s){
+  const lv = distortion(s).level;
+  const txt = {hi: "歪み 高い", mid: "歪み 中くらい", lo: "歪み 低い", na: "歪み 判定不可"}[lv];
+  return `<button type="button" class="chip jump ${{hi: "g", mid: "w", lo: "b", na: ""}[lv]}" data-jump="市場の歪み">${txt} ›</button>`;
 }
-function sectorBrief(s){
+function sectorChip(s){
   const rot = DATA.rot || {}, mk = rot.market, macro = rot.macro;
   const sec = mk && mk.sectors.find(x => secKey(x.name) === secKey(s.s));
-  if (!sec) return `<button type="button" class="wj" data-jump="セクターの位置づけ"><span class="lbl">セクター</span><b>${esc(s.s)}</b><span>データなし</span></button>`;
+  if (!sec) return "";
   const base = macro ? macro.phase : mk.lead, nextPh = base ? PHASE_ORDER[(PHASE_ORDER.indexOf(base) + 1) % 4] : null;
-  const tags = [];
-  if (sec.phase && sec.phase === base) tags.push(["いまの局面", "g"]);
-  if (sec.phase && sec.phase === nextPh) tags.push(["次に来やすい", "g"]);
-  if (sec.phase && sec.phase === mk.lead) tags.push(["相場の主役", "w"]);
-  if (sec.phase && sec.phase === mk.rising) tags.push(["勢いあり", "w"]);
+  const tag = !sec.phase ? null : sec.phase === mk.lead ? ["相場の主役", "w"] : sec.phase === base ? ["いまの局面", "g"]
+    : sec.phase === nextPh ? ["次に来やすい", "g"] : sec.phase === mk.rising ? ["勢いあり", "w"] : null;
   const ranked = mk.sectors.filter(x => x.x13 != null).sort((a, b) => b.x13 - a.x13), rank = ranked.findIndex(x => x.name === sec.name) + 1;
-  return `<button type="button" class="wj" data-jump="セクターの位置づけ"><span class="lbl">セクター</span>
-    <b>${esc(s.s)}${sec.phase ? ` · ${esc(sec.phase)}` : ""}</b>
-    ${tags.length ? `<span class="tagline">${tags.map(([x, c]) => `<span class="chip ${c}">${x}</span>`).join("")}</span>` : ""}
-    <span>${rank ? `3か月の強さ ${ranked.length}業種中 ${rank}位` : ""}${sec.r13 != null ? `(業種 ${spct(sec.r13, 0)})` : ""}</span></button>`;
+  return `<button type="button" class="chip jump ${tag ? tag[1] : ""}" data-jump="セクターの位置づけ">業種 ${rank ? `${rank}/${ranked.length}位` : ""}${sec.phase ? `・${esc(sec.phase)}` : ""}${tag ? `・${tag[0]}` : ""} ›</button>`;
 }
 function targetRow(s){
   const t = wtarget[s.c];
-  return `<div class="wjudge">${distBrief(s)}${sectorBrief(s)}</div>
-    <div class="wtgt" data-wtrow="${esc(s.c)}">
+  return `<div class="wtgt" data-wtrow="${esc(s.c)}">
       ${bottomBox(s)}
       <div class="wset">
         <span class="lbl">目標</span>
