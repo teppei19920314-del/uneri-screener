@@ -163,6 +163,11 @@ class Firestore:
 
 
 def sign_in(api_key: str, email: str, password: str, session=None) -> tuple[str, str]:
+    import unicodedata
+
+    # Secrets に貼り付けたときに入りやすい、前後の空白・改行・全角の英数字を取り除く
+    email = unicodedata.normalize("NFKC", email or "").strip()
+    password = (password or "").strip("\r\n")
     s = session or requests.Session()
     r = s.post(f"https://identitytoolkit.googleapis.com/v1/accounts:signInWithPassword?key={api_key}",
                json={"email": email, "password": password, "returnSecureToken": True}, timeout=30)

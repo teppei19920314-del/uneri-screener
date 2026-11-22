@@ -138,6 +138,8 @@ class FakeGoogle:
         self.base = "https://firestore.googleapis.com/v1/projects/p/databases/(default)/documents/"
 
     def post(self, url, json=None, timeout=None):
+        if json["email"] != "me@example.invalid":
+            return FakeResp(400, {"error": {"message": "INVALID_EMAIL"}})
         if json["password"] != "good":
             return FakeResp(400, {"error": {"message": "INVALID_LOGIN_CREDENTIALS"}})
         return FakeResp(200, {"idToken": "tok", "localId": "U1"})
@@ -211,6 +213,11 @@ class Run(unittest.TestCase):
         self.assertEqual(set(self.docs["users/U1/settings/alertState"]["keys"]), {"L1:target:3100"})
         self.docs["users/U1/settings/watch"] = {"codes": ["1111"]}
         self.assertIn("1件を1台", self.run_once())
+
+    def test_email_cleanup(self):
+        self.env["NOTIFY_EMAIL"] = " ｍｅ@example.invalid\n"
+        self.env["NOTIFY_PASSWORD"] = "good\n"
+        self.assertIn("件を1台の端末に通知しました", self.run_once())
 
     def test_missing_settings_and_bad_login(self):
         self.assertIn("未設定", notify.run({**self.env, "VAPID_PRIVATE_KEY": ""}))
