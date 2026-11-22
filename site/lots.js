@@ -12,8 +12,8 @@
   const $ = id => document.getElementById(id);
   const esc = s => String(s ?? "").replace(/[&<>"']/g, c => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;", "'": "&#39;" }[c]));
   const int = n => Math.round(n).toLocaleString("ja-JP");
-  const money = n => (n < 0 ? "−" : "") + int(Math.abs(n));
-  const smoney = n => (n > 0 ? "+" : n < 0 ? "−" : "") + int(Math.abs(n));
+  const money = n => (n < 0 ? "-" : "") + int(Math.abs(n));
+  const smoney = n => (n > 0 ? "+" : n < 0 ? "-" : "") + int(Math.abs(n));
   const spct = v => v == null ? "–" : (v > 0 ? "+" : "") + (v * 100).toFixed(1) + "%";
   const norm = v => String(v ?? "").normalize("NFKC");
   const plain = v => norm(v).replace(/[^\d.]/g, "");

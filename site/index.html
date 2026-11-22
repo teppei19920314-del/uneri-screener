@@ -502,7 +502,7 @@ const man = v => v == null ? "–" : v >= 1e8 ? (v/1e8).toFixed(2)+"億株" : (v
 const yen = v => v == null ? "–" : Number(v).toLocaleString("ja-JP",{maximumFractionDigits:1}) + "円";
 const oku = v => v == null ? "–" : v >= 10000 ? (v/10000).toFixed(2)+"兆円" : Number(v).toLocaleString("ja-JP")+"億円";
 // 符号つきの金額(億円 → 1兆円以上は兆円)
-const okuS = v => v == null || isNaN(v) ? "–" : (v > 0 ? "+" : v < 0 ? "−" : "") +
+const okuS = v => v == null || isNaN(v) ? "–" : (v > 0 ? "+" : v < 0 ? "-" : "") +
   (Math.abs(v) >= 10000 ? (Math.abs(v)/10000).toFixed(2)+"兆円" : Math.round(Math.abs(v)).toLocaleString("ja-JP")+"億円");
 // 時価総額の増減額(億円)。base=0 は1年の高値から、13/26/52 は その週数前から。今の株数で計算した概算
 function mcDrop(s, base){
