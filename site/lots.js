@@ -169,29 +169,47 @@
       <p class="ckh">予定を含む</p>${box("", t.planN, t.planAmt, t.leftPlan)}
       <div class="lotmeter" role="img" aria-label="投資金額に対して購入済${pct(t.doneAmt).toFixed(1)}%、予定を含めて${pct(t.planAmt).toFixed(1)}%"><i class="a" style="width:${pct(t.doneAmt)}%"></i><i class="b" style="width:${Math.max(0, pct(t.planAmt) - pct(t.doneAmt))}%"></i></div>`;
   }
+  // 同じ銘柄の行は1つのカードにまとめ、買う(買った)単位ごとに1行ずつ並べる
   function planHtml() {
-    const rows = sorted().map(l => {
-      const s = stock(l.code), price = s ? s.p : null, amt = amount(l);
-      const pl = l.done && price && amt ? (price - l.target) * l.shares : null;
+    const groups = new Map();
+    sorted().forEach(l => { const g = groups.get(l.code) || []; g.push(l); groups.set(l.code, g); });
+    const cards = [...groups.values()].map(list => {
+      const l0 = list[0], code = l0.code, s = stock(code), price = s ? s.p : null, gid = esc(l0.id);
+      const lines = list.map(l => {
+        const amt = amount(l), pl = l.done && price && amt ? (price - l.target) * l.shares : null;
+        return `<div class="lotline">
+          <div class="lotfields">
+            <label>購入金額(1株)<input class="lotin" id="a-${esc(l.id)}" data-id="${esc(l.id)}" data-f="target" type="text" inputmode="decimal" autocomplete="off" value="${esc(fmt(l.target))}"></label>
+            <label>株数<input class="lotin" id="s-${esc(l.id)}" data-id="${esc(l.id)}" data-f="shares" type="text" inputmode="numeric" autocomplete="off" value="${esc(fmt(l.shares))}"></label>
+            <label class="lotdone">購入済<input type="checkbox" data-lot-done="${esc(l.id)}" ${l.done ? "checked" : ""}></label>
+          </div>
+          <div class="lotfoot">
+            <span>${amt ? "計 " + int(amt) + "円" : ""}${pl != null ? ` · 含み損益 <b class="${pl >= 0 ? "up" : "dn"}">${smoney(pl)}円</b>` : ""}</span>
+            <button class="lotdel" type="button" data-lot-del="${esc(l.id)}">${state.armed === l.id ? "もう一度押すと削除" : "削除"}</button>
+          </div></div>`;
+      }).join("");
+      let sum = "";
+      if (list.length > 1) {
+        const n = list.reduce((x, l) => x + qty(l), 0), a = list.reduce((x, l) => x + amount(l), 0);
+        const dn = list.filter(l => l.done).reduce((x, l) => x + qty(l), 0), da = list.filter(l => l.done).reduce((x, l) => x + amount(l), 0);
+        const pl = dn && price ? price * dn - da : null;
+        sum = `<div class="lotgsum">合計 <b>${int(n)}株</b>${a ? ` · <b>${int(a)}円</b> · 平均 <b>${two(ceil2(a / n))}</b>` : ""}${pl != null ? ` · 含み損益 <b class="${pl >= 0 ? "up" : "dn"}">${smoney(pl)}円</b>` : ""}</div>`;
+      }
       return `<div class="lotrow">
         <div class="lothead">
-          <input class="lotcode" id="c-${esc(l.id)}" data-id="${esc(l.id)}" data-f="code" maxlength="4" autocomplete="off" value="${esc(l.code)}" aria-label="証券コード">
-          ${s ? `<button class="lotname" type="button" data-lot-open="${esc(l.code)}">${esc(s.n)}</button>`
-              : `<input class="lotnamein" id="n-${esc(l.id)}" data-id="${esc(l.id)}" data-f="name" maxlength="40" value="${esc(l.name)}" aria-label="銘柄名">`}
+          <input class="lotcode" id="c-${gid}" data-id="${gid}" data-f="code" maxlength="4" autocomplete="off" value="${esc(code)}" aria-label="証券コード">
+          ${s ? `<button class="lotname" type="button" data-lot-open="${esc(code)}">${esc(s.n)}</button>`
+              : `<input class="lotnamein" id="n-${gid}" data-id="${gid}" data-f="name" maxlength="40" value="${esc(l0.name)}" aria-label="銘柄名">`}
           <span class="lotprice">${price ? "株価 " + esc(fmt(price)) : "株価 —"}</span>
         </div>
-        <div class="lotfields">
-          <label>購入金額(1株)<input class="lotin" id="a-${esc(l.id)}" data-id="${esc(l.id)}" data-f="target" type="text" inputmode="decimal" autocomplete="off" value="${esc(fmt(l.target))}"></label>
-          <label>株数<input class="lotin" id="s-${esc(l.id)}" data-id="${esc(l.id)}" data-f="shares" type="text" inputmode="numeric" autocomplete="off" value="${esc(fmt(l.shares))}"></label>
-          <label class="lotdone">購入済<input type="checkbox" data-lot-done="${esc(l.id)}" ${l.done ? "checked" : ""}></label>
-        </div>
+        ${lines}
+        ${sum}
         <div class="lotfoot">
-          <span>${amt ? "計 " + int(amt) + "円" : ""}${pl != null ? ` · 含み損益 <b class="${pl >= 0 ? "up" : "dn"}">${smoney(pl)}円</b>` : ""}</span>
-          <span><a href="https://finance.yahoo.co.jp/quote/${encodeURIComponent(l.code)}.T/chart" target="_blank" rel="noopener">株価を見る</a>
-          <button class="lotdel" type="button" data-lot-del="${esc(l.id)}">${state.armed === l.id ? "もう一度押すと削除" : "削除"}</button></span>
+          <button class="lotmore" type="button" data-lot-more="${esc(code)}">+ 同じ銘柄の行を追加</button>
+          <a href="https://finance.yahoo.co.jp/quote/${encodeURIComponent(code)}.T/chart" target="_blank" rel="noopener">株価を見る</a>
         </div></div>`;
     }).join("");
-    return rows || `<p class="note" style="margin:0">${state.loaded ? "下にコードを入れるか、銘柄の詳細画面の「購入計画に追加」から追加できます。" : "読み込み中です…"}</p>`;
+    return cards || `<p class="note" style="margin:0">${state.loaded ? "下にコードを入れるか、銘柄の詳細画面の「購入計画に追加」から追加できます。" : "読み込み中です…"}</p>`;
   }
   function analysisHtml() {
     const held = byCode().filter(o => o.s > 0);
@@ -339,10 +357,14 @@
       const code = norm(el.value).trim().toUpperCase();
       const l = state.lots.find(x => x.id === d.id);
       if (!CODE.test(code)) { toast("証券コードは4桁で入力してください。例 7203、130A"); el.value = l ? l.code : ""; return; }
-      backend.update(d.id, { code, name: nameOf(code) }).catch(failed);
+      if (!l) return;
+      // 同じ銘柄のカードにまとめているので、その銘柄の行をすべて書き換える
+      Promise.all(state.lots.filter(x => x.code === l.code).map(x => backend.update(x.id, { code, name: nameOf(code) }))).catch(failed);
     } else if (d.f === "name") {
       const l = state.lots.find(x => x.id === d.id);
-      backend.update(d.id, { name: el.value.trim() || (l ? l.code : "") }).catch(failed);
+      if (!l) return;
+      const name = el.value.trim() || l.code;
+      Promise.all(state.lots.filter(x => x.code === l.code).map(x => backend.update(x.id, { name }))).catch(failed);
     } else if (d.f === "target" || d.f === "shares") {
       const l = state.lots.find(x => x.id === d.id);
       let v = toNum(el.value);
@@ -370,6 +392,16 @@
     const add = t.closest && t.closest("[data-lot-add]");
     if (add && backend) {
       addLot(add.dataset.lotAdd, false).then(() => toast("購入計画に追加しました。「ロット」タブで金額と株数を入れてください。")).catch(failed);
+      return;
+    }
+    const more = t.closest && t.closest("[data-lot-more]");
+    if (more && backend) {
+      const code = more.dataset.lotMore, mine = state.lots.filter(l => l.code === code);
+      const id = backend.newId(); state.focus = "a-" + id;
+      // 同じ銘柄のカードの最後に並ぶよう、その銘柄の最後の行のすぐ後ろの順番にする
+      const after = Math.max(...mine.map(l => l.order || 0));
+      const next = Math.min(...state.lots.map(l => l.order || 0).filter(o => o > after), after + 2);
+      backend.add(id, { code, name: nameOf(code), target: null, shares: null, done: false, order: (after + next) / 2 }).catch(failed);
       return;
     }
     const del = t.closest && t.closest("[data-lot-del]");

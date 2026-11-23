@@ -131,6 +131,9 @@ select{width:100%;padding:7px 10px;border:1px solid var(--rule);border-radius:8p
 .period{display:inline-flex;border:1px solid var(--rule);border-radius:999px;padding:2px;gap:2px;justify-self:start}
 .period .chipbtn{border:none;padding:5px 14px;font-weight:700}
 .period .chipbtn[aria-pressed="true"]{background:var(--ai);color:var(--sheet)}
+.pxr{display:grid;grid-template-columns:1fr 1fr;gap:2px 14px}
+.pxr .pxv{grid-column:1/-1;font-size:13px;font-weight:700;color:var(--ai)}
+.pxr label{display:grid;gap:0;font-size:11.5px;color:var(--ink-3)}
 .crow{display:grid;grid-template-columns:5.2em 1fr;gap:8px;align-items:center}
 .clab{font-size:12.5px;font-weight:700;color:var(--ink-2)}
 .cbar .chipbtn{padding:4px 10px;font-size:12.5px}
@@ -237,6 +240,10 @@ ul.checks .na{color:var(--ink-3)}
 .lotdone input{width:22px;height:22px;margin:6px 0;accent-color:var(--ai)}
 .lotfoot{display:flex;flex-wrap:wrap;justify-content:space-between;gap:4px 10px;font-size:12.5px;color:var(--ink-2)}
 .lotfoot a{color:var(--ai);font-weight:700;text-decoration:none;margin-right:8px}
+.lotline{display:grid;gap:6px;padding-top:8px;border-top:1px dashed var(--rule)}
+.lotgsum{font-size:13px;color:var(--ink-2);padding-top:8px;border-top:1px solid var(--rule)}
+.lotgsum b{color:var(--ink);font-variant-numeric:tabular-nums}
+.lotmore{border:none;background:none;color:var(--ai);font-size:12.5px;font-weight:700;padding:2px 0;cursor:pointer}
 .lotdel{border:none;background:none;color:var(--ai);font-size:12.5px;font-weight:700;padding:2px 0;cursor:pointer}
 .lotadd{display:flex;align-items:center;gap:8px;font-size:13.5px;font-weight:700}
 .lotbudget{width:100%;padding:9px 12px;border:1px solid var(--rule);border-radius:8px;background:var(--sheet);font-size:20px;text-align:center;font-variant-numeric:tabular-nums}
@@ -409,6 +416,10 @@ table.lottotal th,table.lottotal td{text-align:center}
     <div class="crow"><span class="clab">基準</span><div class="seg" data-k="pbase">
       <button class="chipbtn" data-v="0">1年の高値から</button><button class="chipbtn" data-v="13">3か月</button>
       <button class="chipbtn" data-v="26">半年</button><button class="chipbtn" data-v="52">1年</button></div></div>
+    <div class="crow pxrow"><span class="clab">株価</span><div class="pxr" data-px="p">
+      <div class="pxv"><span data-pxv></span></div>
+      <label>下限<input type="range" data-pxe="lo" min="0" max="13" step="1" aria-label="株価の下限"></label>
+      <label>上限<input type="range" data-pxe="hi" min="1" max="14" step="1" aria-label="株価の上限"></label></div></div>
     <div class="crow"><span class="clab">歪み</span><div class="seg" data-m="pdlv">
       <button class="chipbtn" data-v="hi">高い</button><button class="chipbtn" data-v="mid">中くらい</button><button class="chipbtn" data-v="lo">低い</button></div></div>
     <div class="crow"><span class="clab">財務</span><div class="seg"><button class="chipbtn" id="pSafe" aria-pressed="false">潰れにくい会社だけ</button></div></div>
@@ -420,9 +431,10 @@ table.lottotal th,table.lottotal td{text-align:center}
       <button class="chipbtn" data-v="45">45%以下</button><button class="chipbtn" data-v="100">すべて</button></div></div>
     <div class="crow"><span class="clab">谷の回数</span><div class="seg" data-g="cswBy" id="cswSeg"></div></div>
     <div class="crow"><span class="clab">1波の値幅</span><div class="seg" data-g="campBy" id="campSeg"></div></div>
-    <div class="crow"><span class="clab">株価</span><div class="seg" data-k="cpx">
-      <button class="chipbtn" data-v="0">制限なし</button><button class="chipbtn" data-v="500">500円以下</button>
-      <button class="chipbtn" data-v="1000">1,000円以下</button><button class="chipbtn" data-v="3000">3,000円以下</button></div></div>
+    <div class="crow pxrow"><span class="clab">株価</span><div class="pxr" data-px="c">
+      <div class="pxv"><span data-pxv></span></div>
+      <label>下限<input type="range" data-pxe="lo" min="0" max="13" step="1" aria-label="株価の下限"></label>
+      <label>上限<input type="range" data-pxe="hi" min="1" max="14" step="1" aria-label="株価の上限"></label></div></div>
     <div class="crow"><span class="clab">歪み</span><div class="seg" data-m="cdlv">
       <button class="chipbtn" data-v="hi">高い</button><button class="chipbtn" data-v="mid">中くらい</button><button class="chipbtn" data-v="lo">低い</button></div></div>
     <p class="note" style="margin:0"><span class="spanY">10</span>年の安値に近い順に並べています。「谷」は株価が25%以上戻した底のことで、回数が多いほど上げ下げを繰り返す「うねり」型です。歪みは複数選べ、何も選ばなければすべて表示します。</p>
@@ -478,7 +490,7 @@ table.lottotal th,table.lottotal td{text-align:center}
 (() => {
 "use strict";
 const $ = s => document.querySelector(s);
-const DEFAULTS = {eq:50, pos:25, tr:-5, tv:10, mr:0, short:"off", mkt:["プライム","スタンダード","グロース"], sort:"score", rev:false, cpos:30, cswBy:{10:3,5:2,2:1,1:0}, campBy:{10:0.5,5:0.5,2:0.3,1:0}, cpx:0, span:10, ptier:0, pbase:0, psafe:false, psort:0, cdlv:[], pdlv:[]};
+const DEFAULTS = {eq:50, pos:25, tr:-5, tv:10, mr:0, short:"off", mkt:["プライム","スタンダード","グロース"], sort:"score", rev:false, cpos:30, cswBy:{10:3,5:2,2:1,1:0}, campBy:{10:0.5,5:0.5,2:0.3,1:0}, pxLo:0, pxHi:14, span:10, ptier:0, pbase:0, psafe:false, psort:0, cdlv:[], pdlv:[]};
 const store = {
   get(k, d){ try{ const v = localStorage.getItem(k); return v ? JSON.parse(v) : d; }catch(e){ return d; } },
   set(k, v){ try{ localStorage.setItem(k, JSON.stringify(v)); }catch(e){} }
@@ -486,6 +498,12 @@ const store = {
 let cfg = Object.assign({}, JSON.parse(JSON.stringify(DEFAULTS)), store.get("uneri.cfg", {}));
 ["cswBy","campBy"].forEach(k=>{ cfg[k] = Object.assign({}, DEFAULTS[k], cfg[k] || {}); });
 ["cdlv","pdlv"].forEach(k=>{ if (!Array.isArray(cfg[k])) cfg[k] = []; });
+// 株価の下限・上限はこの刻みから選ぶ(0 = 下限なし、最後 = 上限なし)
+const PX_STEPS = [0, 100, 200, 300, 500, 700, 1000, 1500, 2000, 3000, 5000, 7000, 10000, 20000, Infinity];
+if (cfg.cpx != null){ const i = PX_STEPS.indexOf(cfg.cpx); if (cfg.cpx > 0 && i > 0) cfg.pxHi = i; delete cfg.cpx; }   // 以前の「◯円以下」
+const pxIn = s => s.p != null && s.p >= PX_STEPS[cfg.pxLo] && s.p <= PX_STEPS[cfg.pxHi];
+const pxTxt = () => cfg.pxLo === 0 && cfg.pxHi === PX_STEPS.length - 1 ? "制限なし"
+  : `${cfg.pxLo ? PX_STEPS[cfg.pxLo].toLocaleString("ja-JP") + "円" : ""}〜${cfg.pxHi < PX_STEPS.length - 1 ? PX_STEPS[cfg.pxHi].toLocaleString("ja-JP") + "円" : ""}`;
 if (cfg.cpos === 55) cfg.cpos = 100;   // 以前の「すべて」の値
 let watch = new Set(store.get("uneri.watch", []));
 let wtarget = store.get("uneri.watchTarget", {});
@@ -736,7 +754,7 @@ function passesChart(s){
   if (s.pos * 100 > cfg.cpos) return false;
   if ((s.sw || 0) < cfg.cswBy[cfg.span]) return false;
   if (cfg.campBy[cfg.span] > 0 && (s.amp || 0) < cfg.campBy[cfg.span]) return false;
-  if (cfg.cpx > 0 && s.p > cfg.cpx) return false;
+  if (!pxIn(s)) return false;
   if (cfg.cdlv.length && !cfg.cdlv.includes(dlv(s))) return false;
   if (s.tr != null && s.tr * 100 < cfg.tr) return false;
   if (cfg.tv > 0 && (s.tv == null || s.tv < cfg.tv)) return false;
@@ -793,6 +811,7 @@ function passesPop(s){
   else if (cfg.ptier && (!s.sc || s.sc > cfg.ptier)) return false;   // 0 = 全銘柄
   if (!cfg.mkt.includes(s.m)) return false;
   if (cfg.pdlv.length && !cfg.pdlv.includes(dlv(s))) return false;
+  if (!pxIn(s)) return false;
   if (cfg.psafe && (s.eq == null || s.eq < 0.4 || s.loss || (s.dist && s.dist.oyl))) return false;
   return dropOf(s) != null;
 }
@@ -1515,6 +1534,10 @@ function syncControls(){
   document.querySelectorAll("#popBar .seg[data-k]").forEach(g=>g.querySelectorAll(".chipbtn").forEach(b=>
     b.setAttribute("aria-pressed", Number(b.dataset.v) === Number(cfg[g.dataset.k]))));
   $("#pSafe").setAttribute("aria-pressed", cfg.psafe);
+  document.querySelectorAll("[data-px]").forEach(g=>{
+    g.querySelector('[data-pxe="lo"]').value = cfg.pxLo; g.querySelector('[data-pxe="hi"]').value = cfg.pxHi;
+    g.querySelector("[data-pxv]").textContent = pxTxt();
+  });
   document.querySelectorAll(".seg[data-m]").forEach(g=>g.querySelectorAll(".chipbtn").forEach(b=>
     b.setAttribute("aria-pressed", cfg[g.dataset.m].includes(b.dataset.v))));
   document.querySelectorAll("#chartBar .seg:not([data-m])").forEach(g=>g.querySelectorAll(".chipbtn").forEach(b=>{
@@ -1585,6 +1608,14 @@ $("#spanSeg").addEventListener("click", e=>{
   const b = e.target.closest(".chipbtn"); if (!b) return;
   cfg.span = Number(b.dataset.v); changed();
   if (!$("#sheet").hidden && location.hash.startsWith("#c")) openDetail(location.hash.slice(2), false);
+});
+// 株価の下限・上限(下限が上限を越えないようにもう一方を動かす)
+document.addEventListener("input", e=>{
+  const el = e.target.closest && e.target.closest("[data-pxe]"); if (!el) return;
+  const v = +el.value;
+  if (el.dataset.pxe === "lo"){ cfg.pxLo = v; if (cfg.pxHi <= v) cfg.pxHi = v + 1; }
+  else { cfg.pxHi = v; if (cfg.pxLo >= v) cfg.pxLo = v - 1; }
+  popLimit = 50; changed();
 });
 // 歪みの選択: 複数選べるボタン(押すたびに入れたり外したり)
 function toggleMulti(e){
