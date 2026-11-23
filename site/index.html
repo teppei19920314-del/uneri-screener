@@ -416,6 +416,8 @@ table.lottotal th,table.lottotal td{text-align:center}
     <div class="crow"><span class="clab">基準</span><div class="seg" data-k="pbase">
       <button class="chipbtn" data-v="0">1年の高値から</button><button class="chipbtn" data-v="13">3か月</button>
       <button class="chipbtn" data-v="26">半年</button><button class="chipbtn" data-v="52">1年</button></div></div>
+    <div class="crow"><span class="clab">市場</span><div class="seg" data-m="mkt">
+      <button class="chipbtn" data-v="プライム">プライム</button><button class="chipbtn" data-v="スタンダード">スタンダード</button><button class="chipbtn" data-v="グロース">グロース</button></div></div>
     <div class="crow pxrow"><span class="clab">株価</span><div class="pxr" data-px="p">
       <div class="pxv"><span data-pxv></span></div>
       <label>下限<input type="range" data-pxe="lo" min="0" max="13" step="1" aria-label="株価の下限"></label>
@@ -431,6 +433,8 @@ table.lottotal th,table.lottotal td{text-align:center}
       <button class="chipbtn" data-v="45">45%以下</button><button class="chipbtn" data-v="100">すべて</button></div></div>
     <div class="crow"><span class="clab">谷の回数</span><div class="seg" data-g="cswBy" id="cswSeg"></div></div>
     <div class="crow"><span class="clab">1波の値幅</span><div class="seg" data-g="campBy" id="campSeg"></div></div>
+    <div class="crow"><span class="clab">市場</span><div class="seg" data-m="mkt">
+      <button class="chipbtn" data-v="プライム">プライム</button><button class="chipbtn" data-v="スタンダード">スタンダード</button><button class="chipbtn" data-v="グロース">グロース</button></div></div>
     <div class="crow pxrow"><span class="clab">株価</span><div class="pxr" data-px="c">
       <div class="pxv"><span data-pxv></span></div>
       <label>下限<input type="range" data-pxe="lo" min="0" max="13" step="1" aria-label="株価の下限"></label>
@@ -1621,7 +1625,10 @@ document.addEventListener("input", e=>{
 function toggleMulti(e){
   const b = e.target.closest(".chipbtn"), g = b && b.closest(".seg[data-m]"); if (!g) return false;
   const k = g.dataset.m, v = b.dataset.v;
-  cfg[k] = cfg[k].includes(v) ? cfg[k].filter(x => x !== v) : cfg[k].concat(v);
+  // 市場がすべて選ばれているときに押したら、その市場だけにする
+  if (k === "mkt" && cfg.mkt.length === DEFAULTS.mkt.length) cfg.mkt = [v];
+  else cfg[k] = cfg[k].includes(v) ? cfg[k].filter(x => x !== v) : cfg[k].concat(v);
+  if (k === "mkt" && !cfg.mkt.length) cfg.mkt = DEFAULTS.mkt.slice();   // 市場を全部外したら、すべての市場に戻す
   changed(); return true;
 }
 $("#chartBar").addEventListener("click", e=>{
